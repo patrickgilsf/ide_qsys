@@ -147,7 +147,7 @@ class Core {
         let str = JSON.parse(Buffer.from(d, 'utf-8').toString().replace(/\x00/g, ""));
         //use jsonrpc library to parse string and print to console
         for (let [a,b] of Object.entries(str)) {
-          options.verbose ? console.log(b) : null;
+          options.verbose ? console.log(a, b) : null;
           if (b == { code: 10, message: 'Logon required' }) {
             console.log('Invalid Authentication!')
           }
