@@ -11,6 +11,7 @@
   "author": "PG",
   "license": "ISC",
   "dependencies": {
+    "jsonrpc-lite": "^2.2.0",
     "net": "^1.0.2",
     "nodemon": "^3.0.3"
   },

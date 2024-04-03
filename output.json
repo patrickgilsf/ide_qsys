@@ -1,0 +1,18 @@
+{
+  "Name": "X32",
+  "Controls": [
+    {
+      "Name": "Status",
+      "String": "OK",
+      "Value": 0,
+      "Position": 0,
+      "Choices": [],
+      "Color": "green",
+      "Indeterminate": false,
+      "Invisible": false,
+      "Disabled": false,
+      "Legend": "",
+      "CssClass": ""
+    }
+  ]
+}
