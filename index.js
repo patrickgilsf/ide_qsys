@@ -114,7 +114,7 @@ class Core {
   }
 
   //pull data from core
-  retrieve = async (output, options) => {
+  retrieve = async (options) => {
     //return obj
     let rtn;
     //handle optional arguments
@@ -139,26 +139,30 @@ class Core {
       
       this.login() ? client.write(login + this.nt) : null;
 
-      console.log(`retreiving ${this.comp}'s ${type}`)
+      console.log(`retriving ${this.comp}'s ${type}`)
       client.write(this.pullCode(this.comp, id, type) + this.nt);
 
       client.on('data', (d) => {
         //convert from buffer to string, remove null termination
-        let str = Buffer.from(d, 'utf-8').toString().replace(/\x00/g, "")
+        let str = JSON.parse(Buffer.from(d, 'utf-8').toString().replace(/\x00/g, ""));
         //use jsonrpc library to parse string and print to console
-        for (let [a,b] of Object.entries(jsonrpc.parse(str))) {
-          if (b.result) {
-            rtn = b.result
+        for (let [a,b] of Object.entries(str)) {
+          options.verbose ? console.log(b) : null;
+          if (b == { code: 10, message: 'Logon required' }) {
+            console.log('Invalid Authentication!')
+          }
+          if (b.Name == this.comp) {
+            rtn = b
 
             console.log(`Here is your requested data:`);
             console.log(rtn)
           
             //stream to file if selected
-            if (!output) {
+            if (!options.output) {
               console.log('no output file selected')
             } else {
               console.log(`creating file at ${output} with return data`)
-              let f = fs.createWriteStream(output);
+              let f = fs.createWriteStream(options.output);
               f.write(JSON.stringify(rtn, null, 2));
             }          
           }
@@ -174,6 +178,14 @@ class Core {
       client.end();
     })
   };
-} 
+};
 
+let core = new Core({
+  ip: "192.168.42.148",
+  username: "QSC",
+  pw: "5678",
+  comp: "X32"
+})
+
+core.retrieve({type: "script.error.count", verbose: true})
 export default Core;

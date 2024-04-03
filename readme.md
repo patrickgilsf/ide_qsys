@@ -77,7 +77,7 @@ deployment.update('updateMe.lua')
 
 ```js
 let options = {
-  id: 5678, //if not specified, id is 1234
+  id: "5678", //if not specified, id is 1234
   type: //default is code, but possible to add any control
 }
 ```
@@ -89,3 +89,73 @@ if you add an options.type, then the first argument has to be the value you are 
 ```
 
 ![Image](img/alternate-update.png)
+
+## Pull data from core (NEW)
+
+you can now pull data from core, and either print data to console, or stream to file:
+
+```js
+deployment.retrieve(options)
+```
+
+...same optional arguments above, plus `output` for a file name to stream to, as well as `verbose` for deeper logging:
+
+```js
+let options = {
+  id: "5678",
+  type: "script.error.count", //default is code
+  output: "data.json",
+  verbose: true
+}
+```
+
+example:
+
+```js
+let core = new Core({
+  ip: "192.168.42.148",
+  username: "QSC",
+  pw: "5678",
+  comp: "X32"
+})
+
+core.retrieve({type: "script.error.count", verbose: true})
+```
+
+will return:
+
+```js
+type has been modified to: script.error.count
+trying credentials....
+retriving X32's script.error.count
+2.0
+EngineStatus
+{
+  Platform: 'Core 110f',
+  State: 'Active',
+  DesignName: 'Tutorial_Main',
+  DesignCode: 'jaJ4KIzs87j6',
+  IsRedundant: false,
+  IsEmulator: false,
+  Status: { Code: 2, String: 'Fault - 9 OK, 1 Fault' }
+}
+2.0
+{
+  Name: 'X32',
+  Controls: [
+    { Name: 'script.error.count', String: '0', Value: 0, Position: 0 }
+  ]
+}
+Here is your requested data:
+{
+  Name: 'X32',
+  Controls: [
+    { Name: 'script.error.count', String: '0', Value: 0, Position: 0 }
+  ]
+}
+no output file selected
+1234
+server closed connection
+```
+
+Questions? Issues and PRs always welcome!
