@@ -180,12 +180,4 @@ class Core {
   };
 };
 
-let core = new Core({
-  ip: "192.168.42.148",
-  username: "QSC",
-  pw: "5678",
-  comp: "X32"
-})
-
-core.retrieve({type: "script.error.count", verbose: true})
 export default Core;
