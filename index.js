@@ -111,73 +111,129 @@ class Core {
         ]
       }
     })
+    //getControls is not returning parseable json
+    
+    // type ? console.log('no type') : console.log('yes type')
+    // //pull all controls or single control
+    // if (!type) {
+    //   return JSON.stringify({
+    //     "jsonrpc": "2.0",
+    //     "id": id,
+    //     "method": "Component.GetControls",
+    //     "params": {
+    //       "Name": comp
+    //     }   
+    //   })
+    // } else {
+    //   return JSON.stringify({
+    //     "jsonrpc": "2.0",
+    //     "id": id,
+    //     "method": "Component.Get",
+    //     "params": {
+    //       "Name": comp,
+    //       "Controls": [
+    //         {
+    //           "Name": type
+    //         }
+    //       ]
+    //     }
+    //   })
+    // }
   }
 
   //pull data from core
   retrieve = async (options) => {
-    //return obj
-    let rtn;
-    //handle optional arguments
-    let id, type;
-    if (options) {
-      id = options.id ? options.id : 1234;
-      type = options.type ? options.type : "code"
-    } else {
-      options = {};
-      id = 5678;
-      type = "code";
-    };
-    
-    options.type ? console.log(`type has been modified to: ${options.type}`) : null;
-    //handle login
-    let login = this.login();
-    login ? console.log("trying credentials....") : console.log("no credentials given");
+    return new Promise((resolve, reject) => {
+      //return obj
+      let rtn;
+      //handle optional arguments
+      if (options) {
+        options.id = options.id ? options.id : "1234";
+      } else {
+        options = {
+          id: "1234",
+          verbose: false,
+        }
+      };
+      //handle login
+      let login = this.login();
+      login ? console.log("trying credentials....") : console.log("no credentials given");
 
-    let client = new net.Socket();
+      let client = new net.Socket();
 
-    client.connect(1710, this.ip, async () => {
-      
-      this.login() ? client.write(login + this.nt) : null;
-
-      console.log(`retriving ${this.comp}'s ${type}`)
-      client.write(this.pullCode(this.comp, id, type) + this.nt);
-
-      client.on('data', (d) => {
-        //convert from buffer to string, remove null termination
-        let str = JSON.parse(Buffer.from(d, 'utf-8').toString().replace(/\x00/g, ""));
-        //use jsonrpc library to parse string and print to console
-        for (let [a,b] of Object.entries(str)) {
-          options.verbose ? console.log(a, b) : null;
-          if (b == { code: 10, message: 'Logon required' }) {
-            console.log('Invalid Authentication!')
+      client.connect(1710, this.ip, async () => {
+        
+        //check for login credentials
+        this.login() ? client.write(login + this.nt) : null;
+        //log based on type input
+        options.type ? console.log(`Retriving ${this.comp}'s ${options.type}`) : console.log(`Retrieving ALL controls from ${this.comp}`);
+        //api call based on options
+        client.write(this.pullCode(this.comp, options.id, options.type) + this.nt);
+        //polll return data
+        client.on('data', (d) => {
+          // //convert from buffer to string, remove null termination
+          let str = Buffer.from(d).toString().replace(/\x00/g, "");
+          let json;
+          try {
+            json = JSON.parse(str);
+          } catch (e) {
+            console.log(`error parsing return JSON: ${e}....returning full string instead\n`);
+            console.log(str)
+            rtn = str
+          };
+          if (json) {
+            // console.log(typeof(json))
+            //use jsonrpc library to parse string and print to console
+            for (let [name,value] of Object.entries(json)) {
+              options.verbose ? console.log(name, value) : null;
+              //incorrect login data
+              if (value == { code: 10, message: 'Logon required' }) {
+                console.log('Invalid Authentication!')
+              };
+              //look for relevant return data
+              if (value.Name == this.comp) {
+                rtn = value
+                //log data
+                console.log(`Here is your requested data:`);
+                console.log(rtn)
+                //stream to file if option is selected
+                if (!options.output) {
+                  console.log('no output file selected')
+                } else {
+                  console.log(`creating file at ${options.output} with return data`)
+                  let f = fs.createWriteStream(options.output);
+                  f.write(JSON.stringify(rtn, null, 2));
+                }          
+              }
+            };
           }
-          if (b.Name == this.comp) {
-            rtn = b
+        });
 
-            console.log(`Here is your requested data:`);
-            console.log(rtn)
-          
-            //stream to file if selected
-            if (!options.output) {
-              console.log('no output file selected')
-            } else {
-              console.log(`creating file at ${output} with return data`)
-              let f = fs.createWriteStream(options.output);
-              f.write(JSON.stringify(rtn, null, 2));
-            }          
-          }
-        };
-      });
 
-      client.on('close', () => {
-        console.log('server closed connection');
+        //handle errors
+        client.on('error', () => reject(err));
+        //handle socket close
+        client.on('close', () => {
+          console.log('server closed connection');
+          client.end();
+        });
+        //return data
+        resolve(rtn);
+        //wait, and close socket
+        await timeoutPromise(3000);
         client.end();
-      });
-
-      await timeoutPromise(3000);
-      client.end();
+      })
     })
   };
+  
 };
 
+let core = new Core({
+  ip: "172.22.24.192",
+  username: "QDSP",
+  pw: 9283,
+  comp: "Zoom"
+});
+
+core.retrieve({verbose: true});
 export default Core;
