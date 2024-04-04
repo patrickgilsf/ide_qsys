@@ -242,13 +242,5 @@ class Core {
   };
 };
 
-let core = new Core({
-  ip: "172.22.24.192",
-  username: "QDSP",
-  pw: "9283",
-  comp: "ZillowTP_dev"
-});
-
-console.log(await core.retrieve({type: "script.error.count"}))
 
 export default Core;
