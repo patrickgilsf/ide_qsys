@@ -119,42 +119,61 @@ let core = new Core({
   comp: "X32"
 })
 
-core.retrieve({type: "script.error.count", verbose: true})
+console.log(await core.retrieve({type: "script.error.count", verbose: true}));
 ```
 
 will return:
 
 ```js
-type has been modified to: script.error.count
 trying credentials....
-retriving X32's script.error.count
-2.0
-EngineStatus
-{
+Retriving Directory's script.error.count
+jsonrpc 2.0
+method EngineStatus
+params {
   Platform: 'Core 110f',
   State: 'Active',
-  DesignName: 'Tutorial_Main',
-  DesignCode: 'jaJ4KIzs87j6',
+  DesignName: 'Tutorial-Main',
+  DesignCode: 'oSzrdDhS0VwR',
   IsRedundant: false,
   IsEmulator: false,
-  Status: { Code: 2, String: 'Fault - 9 OK, 1 Fault' }
+  Status: { Code: 0, String: 'OK' }
 }
-2.0
+jsonrpc 2.0
+result {
+  Name: 'X32',
+  Controls: [
+    { Name: 'script.error.count', String: '0', Value: 0, Position: 0 }
+  ]
+}
+id 1234
+creating file at test.json with return data
 {
   Name: 'X32',
   Controls: [
     { Name: 'script.error.count', String: '0', Value: 0, Position: 0 }
   ]
 }
-Here is your requested data:
+server closed connection
+```
+
+and: 
+
+```js
+console.log(await core.retrieve({type: "script.error.count", output: "test.json"}));
+```
+
+will return:
+
+```js
+trying credentials....
+Retriving Directory's script.error.count
+creating file at test.json with return data
 {
   Name: 'X32',
   Controls: [
     { Name: 'script.error.count', String: '0', Value: 0, Position: 0 }
   ]
 }
-no output file selected
-1234
 server closed connection
 ```
 
