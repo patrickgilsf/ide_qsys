@@ -113,8 +113,7 @@ class Core {
     })
 
 
-    //getControls is not returning parseable json - chunk is too big, need to concatenate in a future version
-    //pull all controls or single control
+    //todo - JSONparse chunks from net stream into array, for getControls()
     // if (!type) {
     //   return JSON.stringify({
     //     "jsonrpc": "2.0",
@@ -174,8 +173,17 @@ class Core {
           client.setEncoding('utf8');
           //poll return data
           client.on('data', (d) => {
+
+            //future remove stock response from api
+            // if (!d.includes("EngineStatus")) {
+            //   totalData += d;
+              
+            // }
+
+
             //convert from buffer to string, remove null termination
-            let str = Buffer.from(d).toString().replace(/\x00/g, "");
+            let str = d.toString().slice(0, -1);
+
             let json;
             try {
               json = JSON.parse(str);
@@ -216,12 +224,14 @@ class Core {
           await timeoutPromise(1500);
           client.end();
           //return data
-          resolve(rtn);  
+          resolve(rtn);
+          // resolve(totalData)
         })    
       })
     };
     //initialize function above
     let finalData = await getReturnData();
+    
     //stream to file if option is selected
     if (options.output) {
       console.log(`creating file at ${options.output} with return data`)
@@ -231,5 +241,14 @@ class Core {
     return finalData;
   };
 };
+
+let core = new Core({
+  ip: "172.22.24.192",
+  username: "QDSP",
+  pw: "9283",
+  comp: "ZillowTP_dev"
+});
+
+console.log(await core.retrieve({type: "script.error.count"}))
 
 export default Core;
