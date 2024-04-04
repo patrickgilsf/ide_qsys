@@ -1,7 +1,5 @@
-import exp from 'constants';
 import fs from 'fs';
 import net from 'net';
-import jsonrpc from 'jsonrpc-lite';
 
 const timeoutPromise = (timeout) => new Promise((resolve) => setTimeout(resolve, timeout))
 
@@ -98,55 +96,39 @@ class Core {
 
   //parse string to pull from core
   pullCode = (comp, id, type) => {
-    return JSON.stringify({
-      "jsonrpc": "2.0",
-      "id": id,
-      "method": "Component.Get",
-      "params": {
-        "Name": comp,
-        "Controls": [
-          {
-            "Name": type
-          }
-        ]
-      }
-    })
 
-
-    //todo - JSONparse chunks from net stream into array, for getControls()
-    // if (!type) {
-    //   return JSON.stringify({
-    //     "jsonrpc": "2.0",
-    //     "id": id,
-    //     "method": "Component.GetControls",
-    //     "params": {
-    //       "Name": comp
-    //     }   
-    //   })
-    // } else {
-    //   return JSON.stringify({
-    //     "jsonrpc": "2.0",
-    //     "id": id,
-    //     "method": "Component.Get",
-    //     "params": {
-    //       "Name": comp,
-    //       "Controls": [
-    //         {
-    //           "Name": type
-    //         }
-    //       ]
-    //     }
-    //   })
-    // }
+    //Get or GetControls based on type field
+    if (!type) {
+      return JSON.stringify({
+        "jsonrpc": "2.0",
+        "id": id,
+        "method": "Component.GetControls",
+        "params": {
+          "Name": comp
+        }   
+      })
+    } else {
+      return JSON.stringify({
+        "jsonrpc": "2.0",
+        "id": id,
+        "method": "Component.Get",
+        "params": {
+          "Name": comp,
+          "Controls": [
+            {
+              "Name": type
+            }
+          ]
+        }
+      })
+    }
   }
 
   //pull data from core
   retrieve = async (options) => {
     let getReturnData = async () => {
       return new Promise((resolve, reject) => {
-        //return obj
-        let rtn = [];
-        let rtn2 = "";
+
         //handle optional arguments
         if (options) {
           options.id = options.id ? options.id : "1234";
@@ -156,6 +138,7 @@ class Core {
             verbose: false,
           }
         };
+
         //handle login
         let login = this.login();
         login ? console.log("trying credentials....") : console.log("no credentials given");
@@ -171,43 +154,20 @@ class Core {
           //api call based on options
           client.write(this.pullCode(this.comp, options.id, options.type) + this.nt);
           client.setEncoding('utf8');
-          //poll return data
+
+          //set up variables for parsing and returning
+          let rtn = [];
+          let fullString = "";
+
+          //concatenate return data
           client.on('data', (d) => {
 
-            //future remove stock response from api
-            // if (!d.includes("EngineStatus")) {
-            //   totalData += d;
-              
-            // }
-
-
-            //convert from buffer to string, remove null termination
-            let str = d.toString().slice(0, -1);
-
-            let json;
-            try {
-              json = JSON.parse(str);
-            } catch (e) {
-              console.log(`error parsing return JSON: ${e}..here is the string:\n\n`);
-              console.log(str);
-            };
-            if (json) {
-              //use jsonrpc library to parse string and print to console
-              for (let [name,value] of Object.entries(json)) {
-                options.verbose ? console.log(name, value) : null;
-                //incorrect login data
-                if (value == { code: 10, message: 'Logon required' }) {
-                  console.log('Invalid Authentication!')
-                };
-                //return control data or error data
-                if (value.Name == this.comp) {
-                  resolve(value)
-                } else {
-                  name == "error" ? resolve(value) : null;
-                }
-              };
-            }
+            //log incoming, if verbose is selected
+            options.verbose ? console.log(d) : null;
+            //concat data into large string, for future parsing
+            fullString += d
           });
+
           //handle socket errors
           client.on('error', () => reject(err));
           client.setTimeout(5000);
@@ -223,9 +183,21 @@ class Core {
           //wait, and then close socket
           await timeoutPromise(1500);
           client.end();
-          //return data
-          resolve(rtn);
-          // resolve(totalData)
+
+
+          //parse full string into array of JSON data
+          //array of full string, split by null terminator
+          for (let str of fullString.split("\x00")) {
+            //confirm string isn't blank, push JSON to array
+            try {
+              str ? rtn.push(JSON.parse(str)) : null
+            } catch (e) {
+              console.log(`error parsing JSON with ${e}, on this string:\n\n${str}`)
+            }
+          };
+
+          //return
+          resolve(rtn)
         })    
       })
     };
@@ -240,7 +212,9 @@ class Core {
     };
     return finalData;
   };
-};
 
+
+
+};
 
 export default Core;

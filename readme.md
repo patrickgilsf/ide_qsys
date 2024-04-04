@@ -92,7 +92,7 @@ if you add an options.type, then the first argument has to be the value you are 
 
 ## Pull data from core (NEW)
 
-you can now pull data from core, and either print data to console, or stream to file:
+you can now pull data from core, and return to object, or stream to file:
 
 ```js
 deployment.retrieve(options)
@@ -103,7 +103,7 @@ deployment.retrieve(options)
 ```js
 let options = {
   id: "5678",
-  type: "script.error.count", //default is code
+  type: "script.error.count", //if there is no type specified, it pull all controls via GetControls
   output: "data.json",
   verbose: true
 }
@@ -126,37 +126,33 @@ will return:
 
 ```js
 trying credentials....
-Retriving Directory's script.error.count
-jsonrpc 2.0
-method EngineStatus
-params {
-  Platform: 'Core 110f',
-  State: 'Active',
-  DesignName: 'Tutorial-Main',
-  DesignCode: 'oSzrdDhS0VwR',
-  IsRedundant: false,
-  IsEmulator: false,
-  Status: { Code: 0, String: 'OK' }
-}
-jsonrpc 2.0
-result {
-  Name: 'X32',
-  Controls: [
-    { Name: 'script.error.count', String: '0', Value: 0, Position: 0 }
-  ]
-}
-id 1234
-creating file at test.json with return data
-{
-  Name: 'X32',
-  Controls: [
-    { Name: 'script.error.count', String: '0', Value: 0, Position: 0 }
-  ]
-}
+Retriving X32's script.error.count
+{"jsonrpc":"2.0","method":"EngineStatus","params":{"Platform":"Core 110f","State":"Active","DesignName":"Tutorial_Main","DesignCode":"jaJ4KIzs87j6","IsRedundant":false,"IsEmulator":false,"Status":{"Code":2,"String":"Fault - 9 OK, 1 Fault"}}}
+{"jsonrpc":"2.0","result":{"Name":"X32","Controls":[{"Name":"script.error.count","String":"0","Value":0.0,"Position":0.0}]},"id":"1234"}
+[
+  {
+    jsonrpc: '2.0',
+    method: 'EngineStatus',
+    params: {
+      Platform: 'Core 110f',
+      State: 'Active',
+      DesignName: 'Tutorial_Main',
+      DesignCode: 'jaJ4KIzs87j6',
+      IsRedundant: false,
+      IsEmulator: false,
+      Status: [Object]
+    }
+  },
+  {
+    jsonrpc: '2.0',
+    result: { Name: 'X32', Controls: [Array] },
+    id: '1234'
+  }
+]
 server closed connection
 ```
 
-and: 
+and:
 
 ```js
 console.log(await core.retrieve({type: "script.error.count", output: "test.json"}));
@@ -166,15 +162,31 @@ will return:
 
 ```js
 trying credentials....
-Retriving Directory's script.error.count
+Retriving X32's script.error.count
 creating file at test.json with return data
-{
-  Name: 'X32',
-  Controls: [
-    { Name: 'script.error.count', String: '0', Value: 0, Position: 0 }
-  ]
-}
+[
+  {
+    jsonrpc: '2.0',
+    method: 'EngineStatus',
+    params: {
+      Platform: 'Core 110f',
+      State: 'Active',
+      DesignName: 'Tutorial_Main',
+      DesignCode: 'jaJ4KIzs87j6',
+      IsRedundant: false,
+      IsEmulator: false,
+      Status: [Object]
+    }
+  },
+  {
+    jsonrpc: '2.0',
+    result: { Name: 'X32', Controls: [Array] },
+    id: '1234'
+  }
+]
 server closed connection
 ```
+
+...as well as print to a `test.json` file
 
 Questions? Issues and PRs always welcome!
