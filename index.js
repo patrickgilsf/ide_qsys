@@ -3,7 +3,6 @@ import net from 'net';
 
 const timeoutPromise = (timeout) => new Promise((resolve) => setTimeout(resolve, timeout))
 
-
 class Core {
   constructor({ip="",username="",pw="", comp=""} = {}) {
     this.ip = ip;
@@ -51,47 +50,68 @@ class Core {
     })
   };
 
-  //update data to core
-  update = async (input, options) => {
-    //handle optional arguments
-    let id, type;
-    if (options) {
-      id = options.id ? options.id : 1234;
-      type = options.type ? options.type : "code"
-    };
-    options.type ? console.log(`type has been modified to: ${options.type}`) : null;
-    //handle login
-    let login = this.login();
-    login ? console.log("trying credentials....") : console.log("no credentials given");
-
+  update = async (input, options = {}) => {
+    // Destructure options
+    let { id = 1234, type = "code" } = options;
+  
+    // Log if type is modified
+    if (options.type) console.log(`Type has been modified to: ${options.type}`);
+  
+    // Attempt to log in
+    let loginSuccessful = this.login();
+    if (loginSuccessful) {
+      console.log("Trying credentials....");
+    } else {
+      console.log("No credentials given");
+      return;
+    }
+  
+    // Establish connection
     let client = new net.Socket();
-
+  
     client.connect(1710, this.ip, async () => {
-      
-      this.login() ? client.write(login + this.nt) : null;
-
-      if (type == "code") {
-        fs.readFile(input, 'utf-8', (err, data) => {
-          if (err) {
-            throw err
-          } else {
+      client.setEncoding('utf8');
+      try {
+        if (loginSuccessful) client.write(loginSuccessful + this.nt);
+  
+        // Read file or update with input based on type
+        if (type === "code") {
+          fs.readFile(input, 'utf-8', (err, data) => {
+            if (err) throw err;
             client.write(this.addCode(this.comp, data, id, type) + this.nt);
+          });
+        } else {
+          console.log(`Updating ${this.comp}'s ${type} to ${input}`);
+          client.write(this.addCode(this.comp, input, id, type) + this.nt);
+        }
+  
+        // Event listeners
+        client.on('data', (data) => {
+          console.log(`Received data from QRC API:`);
+          let json = JSON.parse(data.slice(0,-1));
+          // console.log(json);
+          if (json.error) {
+            console.log('error in json return');
+            console.log(json.error)
+          };
+          if (json.result) {
+            console.log("successful update!");
+            console.log(json);
           }
         });
-      } else {
-        console.log(`updating ${this.comp}'s ${type} to ${input}`)
-        client.write(this.addCode(this.comp, input, id, type) + this.nt);
-      }
-      client.on('data', (d) => {
-        console.log(`received data from QRC API: ${d}`);
-      });
-      client.on('close', () => {
-        console.log('server closed connection');
+        client.on('close', () => {
+          console.log('Server closed connection');
+          client.end();
+        });
+  
+        // Wait for a period before ending the client
+        await timeoutPromise(3000);
         client.end();
-      });
-      await timeoutPromise(3000);
-      client.end();
-    })
+      } catch (error) {
+        console.error("Error occurred:", error);
+        client.end(); // Close client in case of error
+      }
+    });
   };
 
   //parse string to pull from core
@@ -212,9 +232,4 @@ class Core {
     };
     return finalData;
   };
-
-
-
 };
-
-export default Core;
