@@ -98,7 +98,7 @@ you can now pull data from core, and return to object, or stream to file:
 deployment.retrieve(options)
 ```
 
-...same optional arguments above, plus `output` for a file name to stream to, as well as `verbose` for deeper logging:
+...same optional arguments above, plus `output` for a file name to stream to, as well as `verbose` for deeper logging, ability to return all data:
 
 ```js
 let options = {
@@ -127,7 +127,7 @@ will return:
 ```js
 trying credentials....
 Retriving X32's script.error.count
-{"jsonrpc":"2.0","method":"EngineStatus","params":{"Platform":"Core 110f","State":"Active","DesignName":"Tutorial_Main","DesignCode":"jaJ4KIzs87j6","IsRedundant":false,"IsEmulator":false,"Status":{"Code":2,"String":"Fault - 9 OK, 1 Fault"}}}
+{"jsonrpc":"2.0","method":"EngineStatus","params":{"Platform":"Core 110f","State":"Active","DesignName":"Tutorial_Main","DesignCode":"XavSo9Z8KKC8","IsRedundant":false,"IsEmulator":false,"Status":{"Code":5,"String":"Initializing - 8 OK, 1 Fault, 1 Initializing"}}}
 {"jsonrpc":"2.0","result":{"Name":"X32","Controls":[{"Name":"script.error.count","String":"0","Value":0.0,"Position":0.0}]},"id":"1234"}
 [
   {
@@ -137,7 +137,7 @@ Retriving X32's script.error.count
       Platform: 'Core 110f',
       State: 'Active',
       DesignName: 'Tutorial_Main',
-      DesignCode: 'jaJ4KIzs87j6',
+      DesignCode: 'XavSo9Z8KKC8',
       IsRedundant: false,
       IsEmulator: false,
       Status: [Object]
@@ -164,29 +164,15 @@ will return:
 trying credentials....
 Retriving X32's script.error.count
 creating file at test.json with return data
-[
-  {
-    jsonrpc: '2.0',
-    method: 'EngineStatus',
-    params: {
-      Platform: 'Core 110f',
-      State: 'Active',
-      DesignName: 'Tutorial_Main',
-      DesignCode: 'jaJ4KIzs87j6',
-      IsRedundant: false,
-      IsEmulator: false,
-      Status: [Object]
-    }
-  },
-  {
-    jsonrpc: '2.0',
-    result: { Name: 'X32', Controls: [Array] },
-    id: '1234'
-  }
-]
+{
+  Name: 'X32',
+  Controls: [
+    { Name: 'script.error.count', String: '0', Value: 0, Position: 0 }
+  ]
+}
 server closed connection
 ```
 
-...as well as print to a `test.json` file
+...as well as print this data to a `test.json` file
 
 Questions? Issues and PRs always welcome!

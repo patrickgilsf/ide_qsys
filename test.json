@@ -1,0 +1,11 @@
+{
+  "Name": "X32",
+  "Controls": [
+    {
+      "Name": "script.error.count",
+      "String": "0",
+      "Value": 0,
+      "Position": 0
+    }
+  ]
+}

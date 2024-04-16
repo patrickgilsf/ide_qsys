@@ -216,8 +216,15 @@ class Core {
             }
           };
 
-          //return
-          resolve(rtn)
+          //if set to verbose, return all json, otherwise just the name and controls
+          if (options.verbose) {
+            resolve(rtn)
+          } else {
+            for (let res of rtn) {
+              // console.log(res)
+              res.result ? resolve(res.result) : null;
+            }  
+          }
         })    
       })
     };
