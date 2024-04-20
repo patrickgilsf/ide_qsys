@@ -240,3 +240,5 @@ class Core {
     return finalData;
   };
 };
+
+export default Core;
