@@ -51,6 +51,8 @@ class Core {
   };
 
   update = async (input, options = {}) => {
+    //return body
+    let rtn = {};
     // Destructure options
     let { id = 1234, type = "code" } = options;
   
@@ -97,6 +99,7 @@ class Core {
           if (json.result) {
             console.log("successful update!");
             console.log(json);
+            rtn = json;
           }
         });
         client.on('close', () => {
@@ -112,6 +115,7 @@ class Core {
         client.end(); // Close client in case of error
       }
     });
+    return rtn;
   };
 
   //parse string to pull from core
