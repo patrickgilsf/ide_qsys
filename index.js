@@ -51,8 +51,7 @@ class Core {
   };
 
   update = async (input, options = {}) => {
-    //return body
-    let rtn = {};
+
     // Destructure options
     let { id = 1234, type = "code" } = options;
   
@@ -68,54 +67,60 @@ class Core {
       return;
     }
   
-    // Establish connection
-    let client = new net.Socket();
-  
-    client.connect(1710, this.ip, async () => {
-      client.setEncoding('utf8');
-      try {
-        if (loginSuccessful) client.write(loginSuccessful + this.nt);
-  
-        // Read file or update with input based on type
-        if (type === "code") {
-          fs.readFile(input, 'utf-8', (err, data) => {
-            if (err) throw err;
-            client.write(this.addCode(this.comp, data, id, type) + this.nt);
-          });
-        } else {
-          console.log(`Updating ${this.comp}'s ${type} to ${input}`);
-          client.write(this.addCode(this.comp, input, id, type) + this.nt);
-        }
-  
-        // Event listeners
-        client.on('data', (data) => {
-          console.log(`Received data from QRC API:`);
-          let json = JSON.parse(data.slice(0,-1));
-          // console.log(json);
-          if (json.error) {
-            console.log('error in json return');
-            console.log(json.error)
-          };
-          if (json.result) {
-            console.log("successful update!");
-            console.log(json);
-            rtn = json;
+    let push = async () => {
+
+      //return body
+      let rtn = {};
+      return new Promise((resolve, reject) => {
+        // Establish connection
+        let client = new net.Socket();
+      
+        client.connect(1710, this.ip, async () => {
+          client.setEncoding('utf8');
+          try {
+            if (loginSuccessful) client.write(loginSuccessful + this.nt);
+      
+            // Read file or update with input based on type
+            if (type === "code") {
+              fs.readFile(input, 'utf-8', (err, data) => {
+                if (err) throw err;
+                client.write(this.addCode(this.comp, data, id, type) + this.nt);
+              });
+            } else {
+              console.log(`Updating ${this.comp}'s ${type} to ${input}`);
+              client.write(this.addCode(this.comp, input, id, type) + this.nt);
+            }
+      
+            // Event listeners
+            client.on('data', (data) => {
+              let json = JSON.parse(data.slice(0,-1));
+              if (json.error) {
+                console.log('error in json return');
+                reject(json.error)
+              };
+              if (json.result) {
+                console.log("successful update!");
+                rtn = json;
+              }
+            });
+            client.on('close', () => {
+              console.log('Server closed connection');
+              client.end();
+            });
+      
+            // Wait for a period before ending the client
+            await timeoutPromise(3000);
+            client.end();
+          } catch (error) {
+            console.error("Error occurred:", error);
+            client.end(); // Close client in case of error
           }
+
+          resolve(rtn);
         });
-        client.on('close', () => {
-          console.log('Server closed connection');
-          client.end();
-        });
-  
-        // Wait for a period before ending the client
-        await timeoutPromise(3000);
-        client.end();
-      } catch (error) {
-        console.error("Error occurred:", error);
-        client.end(); // Close client in case of error
-      }
-    });
-    return rtn;
+      })
+    };
+    return await push();
   };
 
   //parse string to pull from core
