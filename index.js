@@ -61,7 +61,6 @@ class Core {
     let push = async () => {
 
       //return body
-      let rtn = {};
       return new Promise((resolve, reject) => {
         // Establish connection
         let client = new net.Socket();
@@ -80,22 +79,18 @@ class Core {
             } else {
               client.write(this.addCode(this.comp, input, id, type) + this.nt);
             }
-      
+
+            //set up variables for parsing and returning
+            let rtn = [];
+            let fullString = "";
+
             // Event listeners
             client.on('data', (data) => {
-              let json = JSON.parse(data.slice(0,-1));
-              if (json.error) {
-                console.log('error in json return');
-                reject(json.error)
-              };
-              if (json.result) {
-                rtn = json;
-              }
+              fullString += data;
             });
             client.on('close', () => {
               client.end();
             });
-      
             // Wait for a period before ending the client
             await timeoutPromise(3000);
             client.end();
@@ -104,11 +99,20 @@ class Core {
             client.end(); // Close client in case of error
           }
 
-          resolve(rtn);
+          for (let str of fullString.split("\x00")) {
+            try {
+              str ? rtn.push(JSON.parse(str)) : null;
+            } catch (e) {
+              console.log(`error parsing JSON with ${e}, on this string:\n\n${str}`)
+            }
+          }
         });
       })
     };
-    return await push();
+
+    let finalData = await push();
+
+    return finalData;
   };
 
   //parse string to pull from core
