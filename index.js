@@ -67,37 +67,33 @@ class Core {
       
         client.connect(1710, this.ip, async () => {
           client.setEncoding('utf8');
-          try {
-            if (loginSuccessful) client.write(loginSuccessful + this.nt);
-      
-            // Read file or update with input based on type
-            if (type === "code") {
-              fs.readFile(input, 'utf-8', (err, data) => {
-                if (err) throw err;
-                client.write(this.addCode(this.comp, data, id, type) + this.nt);
-              });
-            } else {
-              client.write(this.addCode(this.comp, input, id, type) + this.nt);
-            }
 
-            //set up variables for parsing and returning
-            let rtn = [];
-            let fullString = "";
-
-            // Event listeners
-            client.on('data', (data) => {
-              fullString += data;
+          if (loginSuccessful) client.write(loginSuccessful + this.nt);
+    
+          // Read file or update with input based on type
+          if (type === "code") {
+            fs.readFile(input, 'utf-8', (err, data) => {
+              if (err) throw err;
+              client.write(this.addCode(this.comp, data, id, type) + this.nt);
             });
-            client.on('close', () => {
-              client.end();
-            });
-            // Wait for a period before ending the client
-            await timeoutPromise(3000);
-            client.end();
-          } catch (error) {
-            console.error("Error occurred:", error);
-            client.end(); // Close client in case of error
+          } else {
+            client.write(this.addCode(this.comp, input, id, type) + this.nt);
           }
+
+          //set up variables for parsing and returning
+          let rtn = [];
+          let fullString = "";
+
+          // Event listeners
+          client.on('data', (data) => {
+            fullString += data;
+          });
+          client.on('close', () => {
+            client.end();
+          });
+          // Wait for a period before ending the client
+          await timeoutPromise(3000);
+          client.end();
 
           for (let str of fullString.split("\x00")) {
             try {
@@ -106,13 +102,14 @@ class Core {
               console.log(`error parsing JSON with ${e}, on this string:\n\n${str}`)
             }
           }
+          for (let res of rtn) {
+            res.result ? resolve(res) : res.error && res.error.message == "Logon required" ? console.log('Error! Invalid credentials given!') : null;
+          }
         });
       })
     };
 
-    let finalData = await push();
-
-    return finalData;
+    return await push();
   };
 
   //parse string to pull from core
