@@ -1,6 +1,6 @@
 {
   "name": "ide_qsys",
-  "version": "1.5.5",
+  "version": "1.5.6",
   "description": "programatically get and set data from a Q-Sys core",
   "main": "index.js",
   "type": "module",
