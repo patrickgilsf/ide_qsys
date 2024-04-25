@@ -55,17 +55,8 @@ class Core {
     // Destructure options
     let { id = 1234, type = "code" } = options;
   
-    // Log if type is modified
-    if (options.type) console.log(`Type has been modified to: ${options.type}`);
-  
     // Attempt to log in
     let loginSuccessful = this.login();
-    if (loginSuccessful) {
-      console.log("Trying credentials....");
-    } else {
-      console.log("No credentials given");
-      return;
-    }
   
     let push = async () => {
 
@@ -87,7 +78,6 @@ class Core {
                 client.write(this.addCode(this.comp, data, id, type) + this.nt);
               });
             } else {
-              console.log(`Updating ${this.comp}'s ${type} to ${input}`);
               client.write(this.addCode(this.comp, input, id, type) + this.nt);
             }
       
@@ -99,12 +89,10 @@ class Core {
                 reject(json.error)
               };
               if (json.result) {
-                console.log("successful update!");
                 rtn = json;
               }
             });
             client.on('close', () => {
-              console.log('Server closed connection');
               client.end();
             });
       
@@ -170,7 +158,6 @@ class Core {
 
         //handle login
         let login = this.login();
-        login ? console.log("trying credentials....") : console.log("no credentials given");
   
         let client = new net.Socket();
   
@@ -179,7 +166,10 @@ class Core {
           //check for login credentials
           this.login() ? client.write(login + this.nt) : null;
           //log based on type input
-          options.type ? console.log(`Retriving ${this.comp}'s ${options.type}`) : console.log(`Retrieving ALL controls from ${this.comp}`);
+          if (options.verbose) {
+            options.type ? console.log(`Retriving ${this.comp}'s ${options.type}`) : console.log(`Retrieving ALL controls from ${this.comp}`);
+          }
+          
           //api call based on options
           client.write(this.pullCode(this.comp, options.id, options.type) + this.nt);
           client.setEncoding('utf8');
@@ -206,7 +196,6 @@ class Core {
           });
           //handle if socket gets closed
           client.on('close', () => {
-            console.log('server closed connection');
             client.end();
           });      
           //wait, and then close socket
@@ -230,7 +219,6 @@ class Core {
             resolve(rtn)
           } else {
             for (let res of rtn) {
-              // console.log(res)
               res.result ? resolve(res.result) : null;
             }  
           }
