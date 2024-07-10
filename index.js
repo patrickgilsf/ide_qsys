@@ -68,7 +68,7 @@ class Core {
         client.connect(1710, this.ip, async () => {
           client.setEncoding('utf8');
 
-          if (loginSuccessful) client.write(loginSuccessful + this.nt);
+          loginSuccessful ? client.write(loginSuccessful + this.nt) : console.log(`error with login!`);
     
           // Read file or update with input based on type
           if (type === "code") {
@@ -103,6 +103,7 @@ class Core {
             }
           }
           for (let res of rtn) {
+            if (res.error) console.log(`error found in response with code ${res.error.code} and messages ${res.error.message}`)
             res.result ? resolve(res) : res.error && res.error.message == "Logon required" ? console.log('Error! Invalid credentials given!') : resolve(res);
           }
         });
