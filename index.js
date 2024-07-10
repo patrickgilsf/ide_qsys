@@ -103,7 +103,7 @@ class Core {
             }
           }
           for (let res of rtn) {
-            res.result ? resolve(res) : res.error && res.error.message == "Logon required" ? console.log('Error! Invalid credentials given!') : null;
+            res.result ? resolve(res) : res.error && res.error.message == "Logon required" ? console.log('Error! Invalid credentials given!') : resolve(res);
           }
         });
       })
