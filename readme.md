@@ -1,7 +1,21 @@
+# ide_qsys
 
-# Description
+A comprehensive Node.js library for programmatically interacting with Q-Sys cores. This enhanced version maintains full backward compatibility while adding powerful new functionality for component management, script monitoring, and advanced Q-Sys operations.
 
-> This is a nodeJS tool for uploading code (or component changes) to your Q-Sys core from your IDE
+## Features
+
+### ✅ Backward Compatibility
+- All existing code using `ide_qsys` continues to work without changes
+- Legacy constructor patterns and methods preserved
+- Seamless upgrade path for existing users
+
+### 🚀 Enhanced Functionality
+- **Component Management**: Get and set component controls
+- **Script Monitoring**: Monitor script errors and status issues
+- **Script Management**: Restart scripts and process issues automatically
+- **Core Diagnostics**: Get system health information
+- **Advanced Error Handling**: Robust timeouts and connection management
+- **Code Export**: Extract all script code from systems
 
 ## Installation
 
@@ -9,170 +23,343 @@
 npm install ide_qsys
 ```
 
-## Add dependency
+## Quick Start
 
-```js
-const Core = require("ide_qsys");
-//or with es6:
-import Core from "ide_qys"
+### Basic Usage (Legacy - Still Supported)
+
+```javascript
+import Core from 'ide_qsys';
+
+const core = new Core({
+  ip: '192.168.1.100',
+  username: 'admin',
+  pw: 'password',
+  comp: 'MyComponent'
+});
+
+// Push code to component
+await core.update('script.lua');
+
+// Pull data from component
+const data = await core.retrieve({ verbose: true });
 ```
 
-## Initialize new core instance
+### Enhanced Usage
 
-> this takes an object with 4 arguments
+```javascript
+import Core from 'ide_qsys';
 
-```js
-let deployment = new Core({
-  ip: "192.168.1.1", //ip address of core
-  username: "TestUser", //if authenticated, username
-  pw: 1234, //if authenticated, pin number
-  comp: "TextController" //component name of code you're updating
-})
-```
-
-## Authentication
-
-Your Q-Sys core might be hardened with authentication for QRC.
-> [!WARNING]
-> this is separate from authenticaion on the core itself
-
-Authentication is performed in Q-Sys Administator:
-![Image](img/qsys-admin.png)
-
-## Add arguments after initializing
-
-> add function will add or modify argruments after initializing
-
-```js
-let deployment = new Core();
-
-deployment.ip = "192.168.1.1";
-deployment.username = "TestUser";
-...etc
-
-console.log(deployment);
-```
-
-## Push code to the core
-
-create .lua file
-
-```bash
-touch updateMe.lua
-```
-
-add code to .lua file
-
-```lua
-print("this is me adding code")
-```
-
-use `update()` to update:
-
-```js
-deployment.update('updateMe.lua')
-```
-
-... plus 2 optional arguments:
-
-```js
-let options = {
-  id: "5678", //if not specified, id is 1234
-  type: //default is code, but possible to add any control
-}
-```
-
-if you add an options.type, then the first argument has to be the value you are changing the component type to:
-
-```js
- deployment.update(true, {type: "Audio.1.visibility"})
-```
-
-![Image](img/alternate-update.png)
-
-## Pull data from core (NEW)
-
-you can now pull data from core, and return to object, or stream to file:
-
-```js
-deployment.retrieve(options)
-```
-
-...same optional arguments above, plus `output` for a file name to stream to, as well as `verbose` for deeper logging, ability to return all data:
-
-```js
-let options = {
-  id: "5678",
-  type: "script.error.count", //if there is no type specified, it pull all controls via GetControls
-  output: "data.json",
-  verbose: true
-}
-```
-
-example:
-
-```js
-let core = new Core({
-  ip: "192.168.42.148",
-  username: "QSC",
-  pw: "5678",
-  comp: "X32"
-})
-
-console.log(await core.retrieve({type: "script.error.count", verbose: true}));
-```
-
-will return:
-
-```js
-trying credentials....
-Retriving X32's script.error.count
-{"jsonrpc":"2.0","method":"EngineStatus","params":{"Platform":"Core 110f","State":"Active","DesignName":"Tutorial_Main","DesignCode":"XavSo9Z8KKC8","IsRedundant":false,"IsEmulator":false,"Status":{"Code":5,"String":"Initializing - 8 OK, 1 Fault, 1 Initializing"}}}
-{"jsonrpc":"2.0","result":{"Name":"X32","Controls":[{"Name":"script.error.count","String":"0","Value":0.0,"Position":0.0}]},"id":"1234"}
-[
-  {
-    jsonrpc: '2.0',
-    method: 'EngineStatus',
-    params: {
-      Platform: 'Core 110f',
-      State: 'Active',
-      DesignName: 'Tutorial_Main',
-      DesignCode: 'XavSo9Z8KKC8',
-      IsRedundant: false,
-      IsEmulator: false,
-      Status: [Object]
-    }
-  },
-  {
-    jsonrpc: '2.0',
-    result: { Name: 'X32', Controls: [Array] },
-    id: '1234'
+const core = new Core({
+  ip: '192.168.1.100',
+  username: 'admin',
+  pin: 'password',  // Note: 'pin' instead of 'pw'
+  comp: 'MyComponent',
+  options: { 
+    systemName: 'MySystem',
+    verbose: true 
   }
-]
-server closed connection
+});
+
+// Get all components
+const components = await core.getComponents();
+
+// Monitor script errors
+const errors = await core.getScriptErrors();
+
+// Restart problematic scripts
+await core.restartScript('MyScript');
+
+// Get core diagnostics
+const diagnostics = await core.getCoreDiagnostics();
 ```
 
-and:
+## API Reference
 
-```js
-console.log(await core.retrieve({type: "script.error.count", output: "test.json"}));
+### Constructor
+
+```javascript
+new Core(options)
 ```
 
-will return:
+**Parameters:**
+- `ip` (string): Q-Sys core IP address
+- `username` (string): Username for authentication
+- `pw` or `pin` (string): Password for authentication
+- `comp` (string): Default component name
+- `options` (object): Additional options
+  - `systemName` (string): System name for logging
+  - `verbose` (boolean): Enable verbose logging
 
-```js
-trying credentials....
-Retriving X32's script.error.count
-creating file at test.json with return data
-{
-  Name: 'X32',
-  Controls: [
-    { Name: 'script.error.count', String: '0', Value: 0, Position: 0 }
-  ]
+### Legacy Methods (Backward Compatible)
+
+#### `update(input, options)`
+Push code or data to a component.
+
+```javascript
+await core.update('script.lua', { type: 'code', id: 1234 });
+```
+
+#### `retrieve(options)`
+Pull data from a component.
+
+```javascript
+const data = await core.retrieve({ 
+  verbose: true, 
+  type: 'code',
+  output: 'output.json' 
+});
+```
+
+### New Methods
+
+#### Component Management
+
+##### `getComponent(comp, ctl, opt)`
+Get a specific control from a component.
+
+```javascript
+const result = await core.getComponent('MyComponent', 'MyControl');
+```
+
+##### `getComponents(opt)`
+Get all components from the core.
+
+```javascript
+const components = await core.getComponents();
+```
+
+##### `getControls(comp, opt)`
+Get all controls for a component.
+
+```javascript
+const controls = await core.getControls('MyComponent');
+```
+
+#### Control Setting
+
+##### `setControl(comp, ctl, value, options)`
+Set a control value.
+
+```javascript
+await core.setControl('MyComponent', 'MyControl', 'newValue', {
+  ramp: 1000,  // Ramp time in ms
+  verbose: true
+});
+```
+
+##### `setControls(comp, ctls, options)`
+Set multiple controls at once.
+
+```javascript
+const controls = [
+  { Name: 'Control1', Value: 'Value1' },
+  { Name: 'Control2', Value: 'Value2' }
+];
+await core.setControls('MyComponent', controls);
+```
+
+#### Script Monitoring
+
+##### `getScriptErrors(opt)`
+Get script errors from the core.
+
+```javascript
+// Get all errors
+const errors = await core.getScriptErrors();
+
+// Get errors for specific script
+const error = await core.getScriptErrors({ scriptName: 'MyScript' });
+```
+
+##### `getScriptStatuses(opt)`
+Get script status issues.
+
+```javascript
+const statuses = await core.getScriptStatuses();
+```
+
+##### `restartScript(componentName, options)`
+Restart a script or plugin.
+
+```javascript
+const success = await core.restartScript('MyScript');
+```
+
+##### `processScriptIssues(systemName, site, ip)`
+Advanced script issue processing with automatic restart and validation.
+
+```javascript
+const result = await core.processScriptIssues('SystemName', 'SiteName', '192.168.1.100');
+
+console.log('Script Errors:', result.scriptErrors);
+console.log('Script Statuses:', result.scriptStatuses);
+console.log('Persistent Errors:', result.persistentErrors);
+console.log('Persistent Statuses:', result.persistentStatuses);
+console.log('Splunk Events:', result.splunkEvents);
+```
+
+#### Core Diagnostics
+
+##### `getCoreDiagnostics(opt)`
+Get core system diagnostics.
+
+```javascript
+const diagnostics = await core.getCoreDiagnostics();
+console.log('Temperature:', diagnostics['system.temperature']);
+console.log('Fan Speed:', diagnostics['system.fan.1.speed']);
+console.log('Grandmaster:', diagnostics['grandmaster.name']);
+```
+
+#### Code Export
+
+##### `exportCode(opt)`
+Export all script code from the system.
+
+```javascript
+const codeExport = await core.exportCode();
+console.log('Scripts:', Object.keys(codeExport));
+```
+
+## Migration Guide
+
+### For Existing Users
+No changes required! Your existing code will continue to work exactly as before.
+
+### For New Features
+To use the new functionality, simply call the new methods on your existing `Core` instances:
+
+```javascript
+// Your existing code
+const core = new Core({
+  ip: '192.168.1.100',
+  username: 'admin',
+  pw: 'password',
+  comp: 'MyComponent'
+});
+
+// Now you can also use new methods
+const components = await core.getComponents();
+const errors = await core.getScriptErrors();
+```
+
+### Constructor Migration (Optional)
+If you want to use the enhanced constructor features:
+
+```javascript
+// Old
+const core = new Core({
+  ip: '192.168.1.100',
+  username: 'admin',
+  pw: 'password',
+  comp: 'MyComponent'
+});
+
+// New (optional)
+const core = new Core({
+  ip: '192.168.1.100',
+  username: 'admin',
+  pin: 'password',  // Changed from 'pw' to 'pin'
+  comp: 'MyComponent',
+  options: { systemName: 'MySystem' }
+});
+```
+
+## Error Handling
+
+The enhanced version includes robust error handling:
+
+- **Connection Timeouts**: 10-second connection timeout
+- **Operation Timeouts**: 30-second operation timeout
+- **Authentication Validation**: Automatic login verification
+- **Detailed Error Messages**: Clear error descriptions
+- **Automatic Cleanup**: Proper connection cleanup on errors
+
+## Examples
+
+### Monitor and Fix Script Issues
+
+```javascript
+import Core from 'ide_qsys';
+
+const core = new Core({
+  ip: '192.168.1.100',
+  username: 'admin',
+  pin: 'password',
+  options: { systemName: 'ConferenceRoom' }
+});
+
+// Check for script issues
+const errors = await core.getScriptErrors();
+const statuses = await core.getScriptStatuses();
+
+if (errors.length > 0 || statuses.length > 0) {
+  console.log('Script issues detected, attempting to restart...');
+  
+  // Process all issues with automatic restart
+  const result = await core.processScriptIssues('ConferenceRoom', 'MainOffice', '192.168.1.100');
+  
+  if (result.persistentErrors.length > 0) {
+    console.log('Persistent errors after restart:', result.persistentErrors);
+  }
 }
-server closed connection
 ```
 
-...as well as print this data to a `test.json` file
+### System Health Monitoring
 
-Questions? Issues and PRs always welcome!
+```javascript
+// Get core diagnostics
+const diagnostics = await core.getCoreDiagnostics();
+
+if (diagnostics['system.temperature'] > 60) {
+  console.warn('High temperature detected:', diagnostics['system.temperature']);
+}
+
+if (diagnostics['system.fan.1.speed'] < 1000) {
+  console.warn('Low fan speed:', diagnostics['system.fan.1.speed']);
+}
+```
+
+### Component Management
+
+```javascript
+// Get all components
+const components = await core.getComponents();
+
+// Find script components
+const scriptComponents = components.filter(comp => 
+  comp.Type.includes('script') || comp.Type.includes('PLUGIN')
+);
+
+console.log('Script components found:', scriptComponents.length);
+
+// Get controls for each script
+for (const component of scriptComponents) {
+  const controls = await core.getControls(component.ID);
+  console.log(`${component.Name} has ${controls.Controls.length} controls`);
+}
+```
+
+## Dependencies
+
+- `net` - Node.js built-in module
+- `fs` - Node.js built-in module
+
+## License
+
+ISC
+
+## Changelog
+
+### Version 2.0.0
+- Added comprehensive component management
+- Added script monitoring and management
+- Added core diagnostics
+- Added advanced error handling
+- Added code export functionality
+- Maintained full backward compatibility
+- Enhanced constructor with options support
+
+### Version 1.5.8
+- Basic Q-Sys core interaction
+- Code push/pull functionality
+- Simple error handling

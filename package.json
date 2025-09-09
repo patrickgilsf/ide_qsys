@@ -1,7 +1,7 @@
 {
   "name": "ide_qsys",
-  "version": "1.5.8",
-  "description": "programatically get and set data from a Q-Sys core",
+  "version": "2.0.0",
+  "description": "Enhanced Q-Sys core interaction library with component management, script monitoring, and advanced diagnostics",
   "main": "index.js",
   "type": "module",
   "scripts": {
@@ -27,7 +27,12 @@
     "js",
     "lua",
     "qsys",
-    "qsc"
+    "qsc",
+    "component-management",
+    "script-monitoring",
+    "core-diagnostics",
+    "av-control",
+    "audio-visual"
   ],
   "bugs": {
     "url": "https://github.com/patrickgilsf/ide_qsys/issues"
