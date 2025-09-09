@@ -195,7 +195,6 @@ console.log('Script Errors:', result.scriptErrors);
 console.log('Script Statuses:', result.scriptStatuses);
 console.log('Persistent Errors:', result.persistentErrors);
 console.log('Persistent Statuses:', result.persistentStatuses);
-console.log('Splunk Events:', result.splunkEvents);
 ```
 
 #### Core Diagnostics

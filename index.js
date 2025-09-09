@@ -655,8 +655,7 @@ class Core {
       scriptErrors: [],
       scriptStatuses: [],
       persistentErrors: [],
-      persistentStatuses: [],
-      splunkEvents: []
+      persistentStatuses: []
     };
 
     try {
@@ -681,44 +680,10 @@ class Core {
 
       console.log(`Restarting ${componentsWithIssues.size} component(s) with issues for ${systemName}`);
 
-      // Record initial detection for Splunk
-      if (initialErrors.length > 0) {
-        result.splunkEvents.push({
-          system: systemName,
-          site,
-          ip,
-          action: "errors_detected",
-          errorCount: initialErrors.length,
-          errors: initialErrors,
-          timestamp: new Date().toISOString()
-        });
-      }
-
-      if (initialStatuses.length > 0) {
-        result.splunkEvents.push({
-          system: systemName,
-          site,
-          ip,
-          action: "status_issues_detected",
-          issueCount: initialStatuses.length,
-          statusIssues: initialStatuses,
-          timestamp: new Date().toISOString()
-        });
-      }
-
       // Restart each component and re-validate
       for (const componentName of componentsWithIssues) {
         try {
           const restarted = await this.restartScript(componentName);
-          
-          result.splunkEvents.push({
-            system: systemName,
-            site,
-            ip,
-            action: restarted ? "restart_successful" : "restart_failed",
-            component: componentName,
-            timestamp: new Date().toISOString()
-          });
 
           if (restarted) {
             // Re-check both errors and statuses for this component
