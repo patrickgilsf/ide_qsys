@@ -11,14 +11,14 @@ class Core {
       // Old pattern: constructor(ip) or constructor({ip, username, pw, comp})
       this.ip = options.ip || options;
       this.username = options.username || '';
-      this.pin = options.pw || options.pin || '';
+      this.pin = options.pw || options.pin || options.password || '';
       this.comp = options.comp || '';
       this.options = { systemName: options.systemName || this.ip };
     } else {
       // New pattern: constructor(ip, options) or constructor({ip, ...})
       this.ip = options.ip || '';
       this.username = options.username || '';
-      this.pin = options.pin || '';
+      this.pin = options.pin || options.password || '';
       this.comp = options.comp || '';
       this.options = options.options || { systemName: options.systemName || this.ip };
     }
@@ -28,7 +28,7 @@ class Core {
   nt = "\u0000"
 
   //parses return data into workable JSON
-  parseData = (data) => {
+  _parseData = (data) => {
     let rtn = [];
     for (let str of data.split(/\u0000/).filter(Boolean)) {
       try {
@@ -49,7 +49,7 @@ class Core {
   }
 
   // Enhanced authentication check
-  authCheck = async (string, inputClient) => {
+  _authCheck = async (string, inputClient) => {
     return new Promise((resolve, reject) => {
       let rtn = {}
       inputClient.write(`${JSON.stringify({
@@ -77,7 +77,7 @@ class Core {
   };
 
   // Enhanced login method
-  login = async (inputClient) => {
+  _login = async (inputClient) => {
     inputClient.write(`${JSON.stringify({
       "jsonrpc":"2.0",
       "method":"Logon",
@@ -105,7 +105,7 @@ class Core {
   };
 
   // Enhanced data sending method
-  sendData = async (data, options = {
+  _sendData = async (data, options = {
     sync: false, 
     send: false, 
     verbose: false
@@ -139,8 +139,8 @@ class Core {
         client.setTimeout(0);
         client.setEncoding('utf8');
 
-        await this.login(client);
-        let authorized = await this.authCheck(fullString, client);
+        await this._login(client);
+        let authorized = await this._authCheck(fullString, client);
 
         if (!authorized.authenticated) {
           clearTimeout(operationTimeout);
@@ -154,7 +154,7 @@ class Core {
 
             if (options.sync == false) {
               if (d.search(this.nt) !== -1) {
-                for (let r of this.parseData(fullString)) {
+                for (let r of this._parseData(fullString)) {
                   if (!r.id) continue;
                   if (r.result) {
                     clearTimeout(operationTimeout);
@@ -169,13 +169,15 @@ class Core {
                 }
               }
             } else {
-              await sleep(1000);
-              client.end();
-              clearTimeout(operationTimeout);
-              for (let r of this.parseData(fullString)) {
-                if (r.result) resolve(r.result);
-                if (r.error) reject(new Error(`QRC error for ${this.ip}: ${JSON.stringify(r.error)}`));
-              };
+              // Sync mode: wait for complete response or timeout
+              if (d.search(this.nt) !== -1) {
+                client.end();
+                clearTimeout(operationTimeout);
+                for (let r of this._parseData(fullString)) {
+                  if (r.result) resolve(r.result);
+                  if (r.error) reject(new Error(`QRC error for ${this.ip}: ${JSON.stringify(r.error)}`));
+                }
+              }
             }
           });
         
@@ -187,7 +189,7 @@ class Core {
   }
 
   // Legacy addCode method for backward compatibility
-  addCode = (comp, code, id, type) => {
+  _addCode = (comp, code, id, type) => {
     return JSON.stringify({
       "jsonrpc": "2.0",
       "id": id,
@@ -227,10 +229,10 @@ class Core {
           if (type === "code") {
             fs.readFile(input, 'utf-8', (err, data) => {
               if (err) throw err;
-              client.write(this.addCode(this.comp, data, id, type) + this.nt);
+              client.write(this._addCode(this.comp, data, id, type) + this.nt);
             });
           } else {
-            client.write(this.addCode(this.comp, input, id, type) + this.nt);
+            client.write(this._addCode(this.comp, input, id, type) + this.nt);
           }
 
           //set up variables for parsing and returning
@@ -266,7 +268,7 @@ class Core {
   };
 
   // Legacy pullCode method for backward compatibility
-  pullCode = (comp, id, type) => {
+  _pullCode = (comp, id, type) => {
     //Get or GetControls based on type field
     if (!type) {
       return JSON.stringify({
@@ -324,7 +326,7 @@ class Core {
           }
           
           //api call based on options
-          client.write(this.pullCode(this.comp, options.id, options.type) + this.nt);
+          client.write(this._pullCode(this.comp, options.id, options.type) + this.nt);
           client.setEncoding('utf8');
 
           //set up variables for parsing and returning
@@ -394,7 +396,7 @@ class Core {
 
   //get a single component's parameters
   getComponent = async (comp, ctl, opt = {}) => {
-    return await this.sendData({
+    return await this._sendData({
       "jsonrpc": "2.0",
       "id": 1234,
       "method": "Component.Get",
@@ -407,9 +409,9 @@ class Core {
     }, {verbose: opt.verbose})
   };
 
-  //syncified
+  //synchronous-style method (waits for complete response)
   getComponentSync = async (comp, ctl, opt = {}) => {
-    return await this.sendData({
+    return await this._sendData({
       "jsonrpc": "2.0",
       "id": 1234,
       "method": "Component.Get",
@@ -425,7 +427,7 @@ class Core {
   //get all components, close socket
   getComponents = async (opt = {}) => {
     try {
-      return await this.sendData({
+      return await this._sendData({
         "jsonrpc": "2.0",
         "method": "Component.GetComponents", 
         "id": 1234
@@ -435,9 +437,9 @@ class Core {
     }
   };
 
-  //syncfied
+  //synchronous-style method (waits for complete response)
   getComponentsSync = async () => {
-    return await this.sendData({
+    return await this._sendData({
       "jsonrpc": "2.0",
       "method": "Component.GetComponents", 
       "params": "test",
@@ -447,7 +449,7 @@ class Core {
 
   //get controls from a given component name
   getControls = async (comp = this.comp, opt = {}) => {
-    return await this.sendData({
+    return await this._sendData({
       "jsonrpc": "2.0",
       "id": 1234,
       "method": "Component.GetControls",
@@ -457,9 +459,9 @@ class Core {
     }, {verbose: opt.verbose})
   };
 
-  //syncified
+  //synchronous-style method (waits for complete response)
   getControlsSync = async (comp = this.comp, opt = {}) => {
-    return await this.sendData({
+    return await this._sendData({
       "jsonrpc": "2.0",
       "id": 1234,
       "method": "Component.GetControls",
@@ -486,10 +488,10 @@ class Core {
       }
     };
     options.ramp ? obj.params.Controls[0].Ramp = options.ramp : null;
-    return await this.sendData(obj, {verbose: options.verbose});
+    return await this._sendData(obj, {verbose: options.verbose});
   };
 
-  //syncified
+  //synchronous-style method (waits for complete response)
   setControlSync = async (comp, ctl, value, options = {}) => {
     let obj = {
       "jsonrpc": "2.0",
@@ -506,7 +508,7 @@ class Core {
       }
     };
     options.ramp ? obj.params.Controls[0].Ramp = options.ramp : null;
-    return await this.sendData(obj, {verbose: options.verbose, sync: true});
+    return await this._sendData(obj, {verbose: options.verbose, sync: true});
   };
 
   //change multiple controls, socket open
@@ -520,7 +522,7 @@ class Core {
         "Controls": ctls
       }
     };
-    return await this.sendData(obj);
+    return await this._sendData(obj);
   }
 
   //return code, or export to folder

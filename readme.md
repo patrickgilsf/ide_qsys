@@ -4,18 +4,19 @@ A comprehensive Node.js library for programmatically interacting with Q-Sys core
 
 ## Features
 
-### ✅ Backward Compatibility
+### Backward Compatibility
 - All existing code using `ide_qsys` continues to work without changes
 - Legacy constructor patterns and methods preserved
 - Seamless upgrade path for existing users
 
-### 🚀 Enhanced Functionality
+### Enhanced Functionality
 - **Component Management**: Get and set component controls
 - **Script Monitoring**: Monitor script errors and status issues
 - **Script Management**: Restart scripts and process issues automatically
 - **Core Diagnostics**: Get system health information
 - **Advanced Error Handling**: Robust timeouts and connection management
 - **Code Export**: Extract all script code from systems
+- **Dual API Design**: Both async and synchronous-style methods available
 
 ## Installation
 
@@ -33,7 +34,7 @@ import Core from 'ide_qsys';
 const core = new Core({
   ip: '192.168.1.100',
   username: 'admin',
-  pw: 'password',
+  password: 'password',  // or use 'pw' or 'pin'
   comp: 'MyComponent'
 });
 
@@ -52,7 +53,7 @@ import Core from 'ide_qsys';
 const core = new Core({
   ip: '192.168.1.100',
   username: 'admin',
-  pin: 'password',  // Note: 'pin' instead of 'pw'
+  password: 'password',  // or use 'pin' or 'pw'
   comp: 'MyComponent',
   options: { 
     systemName: 'MySystem',
@@ -84,13 +85,27 @@ new Core(options)
 **Parameters:**
 - `ip` (string): Q-Sys core IP address
 - `username` (string): Username for authentication
-- `pw` or `pin` (string): Password for authentication
+- `pw`, `pin`, or `password` (string): Password/PIN for authentication
 - `comp` (string): Default component name
 - `options` (object): Additional options
   - `systemName` (string): System name for logging
   - `verbose` (boolean): Enable verbose logging
 
+### Method Types
+
+The library provides two types of methods for most operations:
+
+- **Async Methods**: Return immediately when the first complete response is received
+- **Sync Methods**: Wait for the complete response before returning (more reliable for complex operations)
+
 ### Legacy Methods (Backward Compatible)
+
+#### `add(input, attribute)`
+Add a property to the Core instance.
+
+```javascript
+core.add('newProperty', 'value');
+```
 
 #### `update(input, options)`
 Push code or data to a component.
@@ -98,6 +113,12 @@ Push code or data to a component.
 ```javascript
 await core.update('script.lua', { type: 'code', id: 1234 });
 ```
+
+**Parameters:**
+- `input` (string): File path or data to send
+- `options` (object): Optional configuration
+  - `id` (number): Request ID (default: 1234)
+  - `type` (string): Control type (default: 'code')
 
 #### `retrieve(options)`
 Pull data from a component.
@@ -110,44 +131,111 @@ const data = await core.retrieve({
 });
 ```
 
-### New Methods
+**Parameters:**
+- `options` (object): Optional configuration
+  - `verbose` (boolean): Return full response data
+  - `type` (string): Specific control to retrieve
+  - `output` (string): File path to save data
+  - `id` (string): Request ID (default: '1234')
 
-#### Component Management
+### Component Management
 
-##### `getComponent(comp, ctl, opt)`
-Get a specific control from a component.
+#### `getComponent(comp, ctl, opt)`
+Get a specific control from a component (async).
 
 ```javascript
 const result = await core.getComponent('MyComponent', 'MyControl');
 ```
 
-##### `getComponents(opt)`
-Get all components from the core.
+**Parameters:**
+- `comp` (string): Component name
+- `ctl` (string): Control name
+- `opt` (object): Optional configuration
+  - `verbose` (boolean): Enable verbose logging
+
+#### `getComponentSync(comp, ctl, opt)`
+Get a specific control from a component (synchronous-style).
+
+```javascript
+const result = await core.getComponentSync('MyComponent', 'MyControl');
+```
+
+**Parameters:** Same as `getComponent`
+
+**Difference from async version:** Waits for complete response before returning, more reliable for complex operations.
+
+#### `getComponents(opt)`
+Get all components from the core (async).
 
 ```javascript
 const components = await core.getComponents();
 ```
 
-##### `getControls(comp, opt)`
-Get all controls for a component.
+**Parameters:**
+- `opt` (object): Optional configuration
+  - `verbose` (boolean): Enable verbose logging
+
+#### `getComponentsSync()`
+Get all components from the core (synchronous-style).
+
+```javascript
+const components = await core.getComponentsSync();
+```
+
+**Difference from async version:** Waits for complete response before returning.
+
+#### `getControls(comp, opt)`
+Get all controls for a component (async).
 
 ```javascript
 const controls = await core.getControls('MyComponent');
 ```
 
-#### Control Setting
+**Parameters:**
+- `comp` (string): Component name (defaults to `this.comp`)
+- `opt` (object): Optional configuration
+  - `verbose` (boolean): Enable verbose logging
 
-##### `setControl(comp, ctl, value, options)`
-Set a control value.
+#### `getControlsSync(comp, opt)`
+Get all controls for a component (synchronous-style).
 
 ```javascript
-await core.setControl('MyComponent', 'MyControl', 'newValue', {
-  ramp: 1000,  // Ramp time in ms
-  verbose: true
-});
+const controls = await core.getControlsSync('MyComponent');
 ```
 
-##### `setControls(comp, ctls, options)`
+**Parameters:** Same as `getControls`
+
+**Difference from async version:** Waits for complete response before returning.
+
+### Control Setting
+
+#### `setControl(comp, ctl, value, options)`
+Set a control value (async).
+
+```javascript
+await core.setControl('MyComponent', 'MyControl', 'newValue');
+```
+
+**Parameters:**
+- `comp` (string): Component name
+- `ctl` (string): Control name
+- `value` (any): Value to set
+- `options` (object): Optional configuration
+  - `ramp` (number): Ramp time in milliseconds
+  - `verbose` (boolean): Enable verbose logging
+
+#### `setControlSync(comp, ctl, value, options)`
+Set a control value (synchronous-style).
+
+```javascript
+await core.setControlSync('MyComponent', 'MyControl', 'newValue');
+```
+
+**Parameters:** Same as `setControl`
+
+**Difference from async version:** Waits for complete response before returning.
+
+#### `setControls(comp, ctls, options)`
 Set multiple controls at once.
 
 ```javascript
@@ -158,9 +246,14 @@ const controls = [
 await core.setControls('MyComponent', controls);
 ```
 
-#### Script Monitoring
+**Parameters:**
+- `comp` (string): Component name
+- `ctls` (array): Array of control objects with `Name` and `Value` properties
+- `options` (object): Optional configuration
 
-##### `getScriptErrors(opt)`
+### Script Monitoring
+
+#### `getScriptErrors(opt)`
 Get script errors from the core.
 
 ```javascript
@@ -171,21 +264,39 @@ const errors = await core.getScriptErrors();
 const error = await core.getScriptErrors({ scriptName: 'MyScript' });
 ```
 
-##### `getScriptStatuses(opt)`
+**Parameters:**
+- `opt` (object): Optional configuration
+  - `scriptName` (string): Target specific script
+
+**Returns:** Array of error objects with `Component`, `Value`, and `Details` properties.
+
+#### `getScriptStatuses(opt)`
 Get script status issues.
 
 ```javascript
 const statuses = await core.getScriptStatuses();
 ```
 
-##### `restartScript(componentName, options)`
+**Parameters:**
+- `opt` (object): Optional configuration
+  - `scriptName` (string): Target specific script
+
+**Returns:** Array of status objects with `Component`, `Control`, `Value`, and `String` properties.
+
+#### `restartScript(componentName, options)`
 Restart a script or plugin.
 
 ```javascript
 const success = await core.restartScript('MyScript');
 ```
 
-##### `processScriptIssues(systemName, site, ip)`
+**Parameters:**
+- `componentName` (string): Name of component to restart
+- `options` (object): Optional configuration
+
+**Returns:** Boolean indicating success.
+
+#### `processScriptIssues(systemName, site, ip)`
 Advanced script issue processing with automatic restart and validation.
 
 ```javascript
@@ -197,9 +308,16 @@ console.log('Persistent Errors:', result.persistentErrors);
 console.log('Persistent Statuses:', result.persistentStatuses);
 ```
 
-#### Core Diagnostics
+**Parameters:**
+- `systemName` (string): Name of the system
+- `site` (string): Site identifier
+- `ip` (string): IP address of the system
 
-##### `getCoreDiagnostics(opt)`
+**Returns:** Object with script issues, persistent issues, and processing results.
+
+### Core Diagnostics
+
+#### `getCoreDiagnostics(opt)`
 Get core system diagnostics.
 
 ```javascript
@@ -209,9 +327,14 @@ console.log('Fan Speed:', diagnostics['system.fan.1.speed']);
 console.log('Grandmaster:', diagnostics['grandmaster.name']);
 ```
 
-#### Code Export
+**Parameters:**
+- `opt` (object): Optional configuration
 
-##### `exportCode(opt)`
+**Returns:** Object with system diagnostic data including temperature, fan speed, grandmaster info, and network speed.
+
+### Code Export
+
+#### `exportCode(opt)`
 Export all script code from the system.
 
 ```javascript
@@ -219,49 +342,24 @@ const codeExport = await core.exportCode();
 console.log('Scripts:', Object.keys(codeExport));
 ```
 
-## Migration Guide
+**Parameters:**
+- `opt` (object): Optional configuration
 
-### For Existing Users
-No changes required! Your existing code will continue to work exactly as before.
+**Returns:** Object with script names as keys and code as values.
 
-### For New Features
-To use the new functionality, simply call the new methods on your existing `Core` instances:
+## Async vs Sync Methods
 
-```javascript
-// Your existing code
-const core = new Core({
-  ip: '192.168.1.100',
-  username: 'admin',
-  pw: 'password',
-  comp: 'MyComponent'
-});
+### Async Methods
+- **Behavior**: Return immediately when the first complete response is received
+- **Use Case**: Fast operations where you want to process data as soon as it's available
+- **Example**: `getComponent()`, `getComponents()`, `getControls()`, `setControl()`
 
-// Now you can also use new methods
-const components = await core.getComponents();
-const errors = await core.getScriptErrors();
-```
+### Sync Methods (Synchronous-Style)
+- **Behavior**: Wait for the complete response before returning
+- **Use Case**: Operations where you need guaranteed complete data
+- **Example**: `getComponentSync()`, `getComponentsSync()`, `getControlsSync()`, `setControlSync()`
 
-### Constructor Migration (Optional)
-If you want to use the enhanced constructor features:
-
-```javascript
-// Old
-const core = new Core({
-  ip: '192.168.1.100',
-  username: 'admin',
-  pw: 'password',
-  comp: 'MyComponent'
-});
-
-// New (optional)
-const core = new Core({
-  ip: '192.168.1.100',
-  username: 'admin',
-  pin: 'password',  // Changed from 'pw' to 'pin'
-  comp: 'MyComponent',
-  options: { systemName: 'MySystem' }
-});
-```
+**Note**: Both method types are actually asynchronous (they return Promises). The "sync" methods are called "synchronous-style" because they wait for complete responses, similar to how `fs.readFileSync()` works compared to `fs.readFile()`.
 
 ## Error Handling
 
@@ -338,6 +436,61 @@ for (const component of scriptComponents) {
 }
 ```
 
+### Using Sync Methods for Reliable Operations
+
+```javascript
+// Use sync methods when you need guaranteed complete data
+const components = await core.getComponentsSync();
+const controls = await core.getControlsSync('MyComponent');
+
+// Use async methods for faster operations
+const quickData = await core.getComponent('MyComponent', 'MyControl');
+```
+
+## Migration Guide
+
+### For Existing Users
+No changes required! Your existing code will continue to work exactly as before.
+
+### For New Features
+To use the new functionality, simply call the new methods on your existing `Core` instances:
+
+```javascript
+// Your existing code
+const core = new Core({
+  ip: '192.168.1.100',
+  username: 'admin',
+  password: 'password',  // or use 'pw' or 'pin'
+  comp: 'MyComponent'
+});
+
+// Now you can also use new methods
+const components = await core.getComponents();
+const errors = await core.getScriptErrors();
+```
+
+### Constructor Migration (Optional)
+If you want to use the enhanced constructor features:
+
+```javascript
+// Old
+const core = new Core({
+  ip: '192.168.1.100',
+  username: 'admin',
+  password: 'password',  // or 'pw' or 'pin'
+  comp: 'MyComponent'
+});
+
+// New (optional)
+const core = new Core({
+  ip: '192.168.1.100',
+  username: 'admin',
+  password: 'password',  // or 'pin' or 'pw'
+  comp: 'MyComponent',
+  options: { systemName: 'MySystem' }
+});
+```
+
 ## Dependencies
 
 - `net` - Node.js built-in module
@@ -355,6 +508,8 @@ ISC
 - Added core diagnostics
 - Added advanced error handling
 - Added code export functionality
+- Added synchronous-style methods for reliable operations
+- Improved sync method implementation for better reliability
 - Maintained full backward compatibility
 - Enhanced constructor with options support
 
