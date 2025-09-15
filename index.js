@@ -61,7 +61,7 @@ class Core {
       inputClient.on('data', (d) => {
         string += d;
         if (d.search(this.nt) !== -1) {
-          for (let r of this.parseData(string)) {
+          for (let r of this._parseData(string)) {
             if (!r.id) continue;
             if (r.error) {
               rtn.authenticated = false;
