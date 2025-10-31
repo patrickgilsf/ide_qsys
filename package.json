@@ -1,6 +1,6 @@
 {
   "name": "ide_qsys",
-  "version": "2.0.0",
+  "version": "2.0.2",
   "description": "Enhanced Q-Sys core interaction library with component management, script monitoring, and advanced diagnostics",
   "main": "index.js",
   "type": "module",
