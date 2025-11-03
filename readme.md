@@ -1,18 +1,64 @@
 # ide_qsys
 
-A high-performance Node.js library for programmatically interacting with Q-SYS cores. Built with a modern session-based architecture for optimal performance and reliability.
+A powerful Node.js library for programmatically managing Q-SYS cores and Lua scripts. Deploy code to multiple systems, monitor script health, sync with files, and automate your Q-SYS infrastructure with ease.
 
-## Features
+## Key Features
 
-- **High Performance**: Session-based architecture reduces connection overhead
-- **Component Management**: Get and set component controls with ease
-- **Script Monitoring**: Monitor script errors and status issues
-- **Script Management**: Restart scripts and process issues automatically
-- **Code Management**: Export, update, and manage script code
-- **Log Collection**: Collect and filter script logs with timestamp removal
+### Instant Deployment Feedback
+```javascript
+// Get immediate error counts and logs after deployment
+const result = await core.updateCode('MainScript', luaCode);
+console.log(`Errors: ${result.deployment.errorCount}`);
+console.log(`Logs: ${result.deployment.logs.join(', ')}`);
+```
+
+### Deploy One Script to Multiple Q-SYS Cores
+```javascript
+// Deploy your Lua script to multiple cores with validation and rollback
+import fs from 'fs';
+const result = await Core.deployToMultipleCores(
+  [
+    { ip: '192.168.1.100', username: 'admin', pin: 'pin1' },
+    { ip: '192.168.1.101', username: 'admin', pin: 'pin2' },
+    { ip: '192.168.1.102', username: 'admin', pin: 'pin3' }
+  ],
+  'MainScript',
+  fs.readFileSync(`./scripts/main.lua`, 'utf8'),
+  { validateFirst: true, rollbackOnError: true }
+);
+```
+
+### Sync Lua Scripts with Files
+```javascript
+// Bidirectional sync between Q-SYS and your filesystem
+await core.syncScriptWithFile('MainScript', './scripts/main.lua', 'auto');
+
+// Push local file to Q-SYS
+await core.loadScriptFromFile('./scripts/updated-main.lua', 'MainScript');
+
+// Pull Q-SYS script to file
+await core.saveScriptToFile('MainScript', './backup/main.lua');
+```
+
+### Monitor Script Health Across Systems
+```javascript
+// Get comprehensive health report across multiple cores
+const health = await Core.monitorScriptHealth(coreConfigs, ['MainScript'], {
+  includeErrors: true,
+  includeLogs: true
+});
+console.log(`System health: ${health.summary.healthPercentage}%`);
+```
+
+## Core Features
+
+- **Multi-Core Deployment**: Deploy Lua scripts to multiple Q-SYS cores simultaneously
+- **File Operations**: Sync Lua scripts between Q-SYS and your filesystem
+- **Health Monitoring**: Monitor script errors and status across your infrastructure
+- **Session Management**: High-performance persistent connections
+- **Error Detection**: Automatic error counting and log collection after deployments
 - **Batch Operations**: Perform multiple operations efficiently
 - **Robust Error Handling**: Comprehensive timeouts and connection management
-- **Flexible API**: Both single-shot and session-based methods available
 
 ## Installation
 
@@ -21,6 +67,45 @@ npm install ide_qsys
 ```
 
 ## Quick Start
+
+### Working with Q-SYS Lua Scripts
+
+This library is designed to manage Lua scripts that run on Q-SYS cores. Here's an example of the type of Lua code you'll be deploying:
+
+```lua
+-- Example Q-SYS Lua Script (main.lua)
+print("Audio System Controller v1.2")
+
+-- System configuration
+local roomConfig = {
+  name = "Conference Room A",
+  micInputs = 4,
+  speakerOutputs = 2,
+  maxGain = 12.0
+}
+
+-- Initialize controls
+Controls.RoomName.String = roomConfig.name
+Controls.SystemStatus.String = "Starting"
+
+-- Main initialization
+function Initialize()
+  print("Initializing " .. roomConfig.name)
+  Controls.SystemStatus.String = "Ready"
+end
+
+-- Event handlers
+Controls.MuteAll.EventHandler = function()
+  for i = 1, roomConfig.speakerOutputs do
+    Controls["Speaker_" .. i .. "_Mute"].Boolean = true
+  end
+  print("All speakers muted")
+end
+
+-- System ready
+Controls.SystemStatus.String = "Online"
+print("Audio system initialized successfully")
+```
 
 ### Basic Usage
 
@@ -185,10 +270,35 @@ await core.disconnect();
 ```javascript
 await core.connect();
 const newCode = `
--- Updated script
-print("Hello from updated script!")
+-- Main Q-SYS Script
+
+-- Initialize controls
+Controls.Status.String = "Online"
+Controls.ErrorCount.Value = 0
+
+-- Event handlers
+Controls.Initialize.EventHandler = function()
+    print("Manual initialization triggered")
+    Controls.Status.String = "Initialized"
+end
 `;
-await core.updateCode('MainScript', newCode);
+
+const result = await core.updateCode('MainScript', newCode);
+
+// Enhanced result includes deployment information
+console.log(`Deployed ${result.deployment.codeLength} characters`);
+console.log(`Error count: ${result.deployment.errorCount}`);
+console.log(`Timestamp: ${result.deployment.timestamp}`);
+
+if (result.deployment.errorCount > 0) {
+  console.log(`Error details: ${result.deployment.errorDetails}`);
+}
+
+// Recent logs from the deployed script
+result.deployment.logs.forEach(log => {
+  console.log(`Log: ${log}`);
+});
+
 await core.disconnect();
 ```
 
@@ -289,12 +399,123 @@ try {
 }
 ```
 
+## Production Use Cases
+
+### Multi-Core Deployment
+
+Deploy one script to multiple Q-SYS cores with validation and rollback:
+
+```javascript
+import Core from 'ide_qsys';
+
+const coreConfigs = [
+  { ip: '192.168.1.100', username: 'admin', pin: 'pin1', systemName: 'Core1' },
+  { ip: '192.168.1.101', username: 'admin', pin: 'pin2', systemName: 'Core2' },
+  { ip: '192.168.1.102', username: 'admin', pin: 'pin3', systemName: 'Core3' }
+];
+
+const scriptCode = `
+-- Main Q-SYS Control Script
+
+-- Configuration
+local config = {
+    systemName = "Conference Room A",
+    audioInputs = 8,
+    audioOutputs = 4,
+    maxVolume = 0.8
+}
+
+-- Initialize system controls
+Controls.SystemName.String = config.systemName
+Controls.Status.String = "Initializing"
+Controls.ErrorCount.Value = 0
+
+-- System ready
+Controls.Status.String = "Online"
+print("System deployment completed successfully")
+`;
+
+const result = await Core.deployToMultipleCores(
+  coreConfigs, 
+  'MainScript', 
+  scriptCode,
+  {
+    validateFirst: true,     // Test connectivity first
+    rollbackOnError: true,   // Auto-rollback on script errors
+    maxConcurrent: 2,        // Deploy to 2 cores at once
+    delayBetween: 1000       // 1 second delay between operations
+  }
+);
+
+console.log(`Deployed to ${result.summary.successful}/${result.summary.total} cores`);
+```
+
+### File Operations
+
+Work with script files on the filesystem:
+
+```javascript
+const core = new Core({ ip: '192.168.1.100', username: 'admin', pin: 'pin' });
+
+// Save script from Q-SYS to file
+await core.saveScriptToFile('MainScript', './scripts/main.lua', {
+  createDir: true,
+  backup: true
+});
+
+// Load Lua script from file to Q-SYS (with deployment info)
+const loadResult = await core.loadScriptFromFile('./scripts/main.lua', 'MainScript');
+console.log(`Deployed: ${loadResult.codeLength} characters, ${loadResult.errorCount} errors`);
+
+// Bidirectional sync (auto-detect direction)
+const syncResult = await core.syncScriptWithFile('MainScript', './scripts/main.lua', 'auto');
+console.log(`Sync action: ${syncResult.action}`);
+
+// Force sync direction (push includes deployment info)
+const pushResult = await core.syncScriptWithFile('MainScript', './scripts/main.lua', 'push'); // File to Q-SYS
+console.log(`Push result: ${pushResult.errorCount} errors, ${pushResult.logs.length} log entries`);
+
+await core.syncScriptWithFile('MainScript', './scripts/main.lua', 'pull'); // Q-SYS to file
+```
+
+### Health Monitoring
+
+Monitor script health across multiple cores:
+
+```javascript
+const healthReport = await Core.monitorScriptHealth(
+  coreConfigs,
+  ['MainScript', 'Module'], // Specific scripts to monitor
+  {
+    includeErrors: true,
+    includeStatus: true,
+    includeLogs: true,
+    logLines: 5
+  }
+);
+
+console.log(`Overall health: ${healthReport.summary.healthPercentage}%`);
+console.log(`Healthy components: ${healthReport.summary.healthyComponents}/${healthReport.summary.totalComponents}`);
+
+// Check individual systems
+healthReport.results.forEach(system => {
+  console.log(`${system.system}: ${system.connected ? 'Connected' : 'Failed'}`);
+  if (system.components) {
+    system.components.forEach(component => {
+      console.log(`  ${component.name}: ${component.errors || 0} errors`);
+    });
+  }
+});
+```
+
 ## Performance Tips
 
 - Use session-based methods for multiple operations
 - Single-shot methods are perfect for simple, one-off tasks
 - Batch operations when possible to reduce overhead
 - Always clean up connections to prevent resource leaks
+- Use multi-core deployment for consistent updates across systems
+- Monitor script health regularly in production environments
 
 ## Requirements
 

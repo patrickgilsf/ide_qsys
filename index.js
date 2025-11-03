@@ -608,10 +608,29 @@ class Core {
 		try {
 			const result = await this.setComponent(componentName, "code", code);
 			
+			// Wait a moment for the script to process
+			await new Promise(resolve => setTimeout(resolve, 1000));
+			
+			// Get error count and logs after update
+			const errors = await this.getScriptErrors({ scriptName: componentName });
+			const logs = await this.collectLogs(componentName);
+			
+			const enhancedResult = {
+				...result,
+				deployment: {
+					componentName,
+					codeLength: code.length,
+					errorCount: errors ? errors.Value : 0,
+					errorDetails: errors ? errors.Details : null,
+					logs: logs || [],
+					timestamp: new Date().toISOString()
+				}
+			};
+			
 			if (callback && typeof callback === 'function') {
-				return callback(null, result);
+				return callback(null, enhancedResult);
 			}
-			return result;
+			return enhancedResult;
 		} catch (error) {
 			if (callback && typeof callback === 'function') {
 				return callback(error, null);
@@ -802,6 +821,386 @@ class Core {
 			return callback(null, results);
 		}
 		return results;
+	}
+
+	// PRODUCTION USE CASE METHODS
+
+	// Deploy one script to multiple Q-SYS cores
+	static async deployToMultipleCores(coreConfigs, componentName, scriptCode, options = {}) {
+		const results = [];
+		const { 
+			validateFirst = true, 
+			rollbackOnError = true,
+			maxConcurrent = 3,
+			delayBetween = 1000 
+		} = options;
+
+		// Validate all cores can be reached first (if enabled)
+		if (validateFirst) {
+			console.log(`Validating connectivity to ${coreConfigs.length} cores...`);
+			for (const config of coreConfigs) {
+				const core = new Core(config);
+				try {
+					await core.getComponentsSync();
+					console.log(`  ${config.ip || config.systemName}: Connected`);
+				} catch (error) {
+					throw new Error(`Pre-validation failed for ${config.ip || config.systemName}: ${error.message}`);
+				}
+			}
+		}
+
+		// Deploy to cores (with concurrency control)
+		const deployPromises = [];
+		for (let i = 0; i < coreConfigs.length; i += maxConcurrent) {
+			const batch = coreConfigs.slice(i, i + maxConcurrent);
+			
+			const batchPromises = batch.map(async (config) => {
+				const core = new Core(config);
+				const systemName = config.systemName || config.ip;
+				
+				try {
+					// Get original code for backup
+					const originalCode = await core.getCode(componentName);
+					
+					// Deploy new code
+					const updateResult = await core.updateCode(componentName, scriptCode);
+					
+					// Wait for additional processing if specified
+					if (delayBetween > 1000) {
+						await new Promise(resolve => setTimeout(resolve, delayBetween - 1000));
+					}
+					
+					// Check for errors (already included in updateResult)
+					if (updateResult.deployment.errorCount > 0) {
+						if (rollbackOnError) {
+							console.log(`  ${systemName}: Errors detected, rolling back...`);
+							await core.updateCode(componentName, originalCode);
+							return {
+								system: systemName,
+								success: false,
+								error: `Script errors detected: ${updateResult.deployment.errorDetails}`,
+								errorCount: updateResult.deployment.errorCount,
+								logs: updateResult.deployment.logs,
+								rolledBack: true
+							};
+						} else {
+							return {
+								system: systemName,
+								success: false,
+								error: `Script errors detected: ${updateResult.deployment.errorDetails}`,
+								errorCount: updateResult.deployment.errorCount,
+								logs: updateResult.deployment.logs,
+								rolledBack: false
+							};
+						}
+					}
+					
+					console.log(`  ${systemName}: Deployed successfully`);
+					return {
+						system: systemName,
+						success: true,
+						originalCodeLength: originalCode.length,
+						newCodeLength: scriptCode.length,
+						errorCount: updateResult.deployment.errorCount,
+						logs: updateResult.deployment.logs,
+						timestamp: updateResult.deployment.timestamp
+					};
+					
+				} catch (error) {
+					return {
+						system: systemName,
+						success: false,
+						error: error.message,
+						rolledBack: false
+					};
+				}
+			});
+			
+			const batchResults = await Promise.all(batchPromises);
+			results.push(...batchResults);
+			
+			// Delay between batches
+			if (i + maxConcurrent < coreConfigs.length && delayBetween > 0) {
+				await new Promise(resolve => setTimeout(resolve, delayBetween));
+			}
+		}
+
+		// Summary
+		const successful = results.filter(r => r.success).length;
+		const failed = results.filter(r => !r.success).length;
+		const rolledBack = results.filter(r => r.rolledBack).length;
+		
+		console.log(`\nDeployment Summary:`);
+		console.log(`  Successful: ${successful}/${coreConfigs.length}`);
+		console.log(`  Failed: ${failed}/${coreConfigs.length}`);
+		if (rolledBack > 0) {
+			console.log(`  Rolled back: ${rolledBack}/${coreConfigs.length}`);
+		}
+
+		return {
+			results,
+			summary: { successful, failed, rolledBack, total: coreConfigs.length }
+		};
+	}
+
+	// Load script from file
+	async loadScriptFromFile(filePath, componentName, options = {}) {
+		const fs = await import('fs');
+		const { encoding = 'utf8', validate = true } = options;
+		
+		try {
+			const scriptCode = fs.readFileSync(filePath, encoding);
+			
+			if (validate) {
+				// Basic validation
+				if (scriptCode.length === 0) {
+					throw new Error('Script file is empty');
+				}
+				if (scriptCode.length > 1000000) { // 1MB limit
+					console.warn('Warning: Script file is very large (>1MB)');
+				}
+			}
+			
+			if (componentName) {
+				const updateResult = await this.updateCode(componentName, scriptCode);
+				return {
+					success: true,
+					filePath,
+					...updateResult.deployment
+				};
+			}
+			
+			return scriptCode;
+			
+		} catch (error) {
+			throw new Error(`Failed to load script from ${filePath}: ${error.message}`);
+		}
+	}
+
+	// Save script to file
+	async saveScriptToFile(componentName, filePath, options = {}) {
+		const fs = await import('fs');
+		const path = await import('path');
+		const { encoding = 'utf8', createDir = true, backup = false } = options;
+		
+		try {
+			const scriptCode = await this.getCode(componentName);
+			
+			if (createDir) {
+				const dir = path.dirname(filePath);
+				if (!fs.existsSync(dir)) {
+					fs.mkdirSync(dir, { recursive: true });
+				}
+			}
+			
+			if (backup && fs.existsSync(filePath)) {
+				const backupPath = `${filePath}.backup`;
+				fs.copyFileSync(filePath, backupPath);
+			}
+			
+			fs.writeFileSync(filePath, scriptCode, encoding);
+			
+			return {
+				success: true,
+				componentName,
+				filePath,
+				codeLength: scriptCode.length,
+				backup: backup && fs.existsSync(`${filePath}.backup`)
+			};
+			
+		} catch (error) {
+			throw new Error(`Failed to save script to ${filePath}: ${error.message}`);
+		}
+	}
+
+	// Sync script with file (bidirectional)
+	async syncScriptWithFile(componentName, filePath, direction = 'auto', options = {}) {
+		const fs = await import('fs');
+		const { compareContent = true, createBackup = true } = options;
+		
+		try {
+			const fileExists = fs.existsSync(filePath);
+			let fileCode = '';
+			let componentCode = '';
+			
+			// Get current states
+			if (fileExists) {
+				fileCode = fs.readFileSync(filePath, 'utf8');
+			}
+			
+			try {
+				componentCode = await this.getCode(componentName);
+			} catch (error) {
+				if (!fileExists) {
+					throw new Error(`Neither file nor component exists: ${error.message}`);
+				}
+				// Component doesn't exist, but file does - will push to component
+			}
+			
+			// Determine sync direction
+			let actualDirection = direction;
+			if (direction === 'auto') {
+				if (!fileExists) {
+					actualDirection = 'pull'; // Component to file
+				} else if (!componentCode) {
+					actualDirection = 'push'; // File to component
+				} else if (compareContent && fileCode === componentCode) {
+					return {
+						success: true,
+						action: 'no-change',
+						message: 'File and component are already in sync'
+					};
+				} else {
+					// Both exist and differ - need user decision
+					throw new Error('Both file and component exist with different content. Please specify direction: "push" or "pull"');
+				}
+			}
+			
+			// Perform sync
+			if (actualDirection === 'push') {
+				if (!fileExists) {
+					throw new Error(`Cannot push: File ${filePath} does not exist`);
+				}
+				const updateResult = await this.updateCode(componentName, fileCode);
+				return {
+					success: true,
+					action: 'push',
+					direction: 'file-to-component',
+					...updateResult.deployment
+				};
+			} else if (actualDirection === 'pull') {
+				if (!componentCode) {
+					throw new Error(`Cannot pull: Component ${componentName} has no code`);
+				}
+				await this.saveScriptToFile(componentName, filePath, { 
+					createDir: true, 
+					backup: createBackup 
+				});
+				return {
+					success: true,
+					action: 'pull',
+					direction: 'component-to-file',
+					codeLength: componentCode.length
+				};
+			} else {
+				throw new Error(`Invalid direction: ${actualDirection}. Use 'push', 'pull', or 'auto'`);
+			}
+			
+		} catch (error) {
+			throw new Error(`Sync failed: ${error.message}`);
+		}
+	}
+
+	// Monitor script health across multiple cores
+	static async monitorScriptHealth(coreConfigs, componentNames = [], options = {}) {
+		const { 
+			includeErrors = true, 
+			includeStatus = true, 
+			includeLogs = false,
+			logLines = 5 
+		} = options;
+		
+		const results = [];
+		
+		for (const config of coreConfigs) {
+			const core = new Core(config);
+			const systemName = config.systemName || config.ip;
+			
+			try {
+				await core.connect();
+				
+				const systemResult = {
+					system: systemName,
+					connected: true,
+					components: []
+				};
+				
+				// Get all components if none specified
+				let targetComponents = componentNames;
+				if (targetComponents.length === 0) {
+					const allComponents = await core.getComponents();
+					targetComponents = allComponents
+						.filter(c => c.Type.includes('script'))
+						.map(c => c.Name);
+				}
+				
+				// Check each component
+				for (const componentName of targetComponents) {
+					const componentResult = {
+						name: componentName,
+						exists: false
+					};
+					
+					try {
+						// Check if component exists
+						const components = await core.getComponents();
+						const component = components.find(c => c.Name === componentName);
+						
+						if (component) {
+							componentResult.exists = true;
+							
+							if (includeErrors) {
+								const errors = await core.getScriptErrors({ scriptName: componentName });
+								componentResult.errors = errors ? errors.Value : 0;
+								if (errors && errors.Details) {
+									componentResult.errorDetails = errors.Details;
+								}
+							}
+							
+							if (includeStatus) {
+								const statuses = await core.getScriptStatuses({ scriptName: componentName });
+								componentResult.statusIssues = statuses.length;
+								if (statuses.length > 0) {
+									componentResult.statusDetails = statuses.slice(0, 3);
+								}
+							}
+							
+							if (includeLogs) {
+								const logs = await core.collectLogs(componentName);
+								componentResult.recentLogs = logs.slice(-logLines);
+							}
+						}
+						
+					} catch (error) {
+						componentResult.error = error.message;
+					}
+					
+					systemResult.components.push(componentResult);
+				}
+				
+				await core.disconnect();
+				results.push(systemResult);
+				
+			} catch (error) {
+				results.push({
+					system: systemName,
+					connected: false,
+					error: error.message
+				});
+			}
+		}
+		
+		// Generate summary
+		const connectedSystems = results.filter(r => r.connected).length;
+		const totalComponents = results.reduce((sum, r) => 
+			sum + (r.components ? r.components.length : 0), 0);
+		const healthyComponents = results.reduce((sum, r) => 
+			sum + (r.components ? r.components.filter(c => 
+				c.exists && (!includeErrors || c.errors === 0) && 
+				(!includeStatus || c.statusIssues === 0)
+			).length : 0), 0);
+		
+		return {
+			results,
+			summary: {
+				connectedSystems,
+				totalSystems: coreConfigs.length,
+				totalComponents,
+				healthyComponents,
+				healthPercentage: totalComponents > 0 ? 
+					Math.round((healthyComponents / totalComponents) * 100) : 0
+			}
+		};
 	}
 }
 
