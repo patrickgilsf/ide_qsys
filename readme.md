@@ -1,22 +1,18 @@
 # ide_qsys
 
-A comprehensive Node.js library for programmatically interacting with Q-Sys cores. This enhanced version maintains full backward compatibility while adding powerful new functionality for component management, script monitoring, and advanced Q-Sys operations.
+A high-performance Node.js library for programmatically interacting with Q-SYS cores. Built with a modern session-based architecture for optimal performance and reliability.
 
 ## Features
 
-### Backward Compatibility
-- All existing code using `ide_qsys` continues to work without changes
-- Legacy constructor patterns and methods preserved
-- Seamless upgrade path for existing users
-
-### Enhanced Functionality
-- **Component Management**: Get and set component controls
+- **High Performance**: Session-based architecture reduces connection overhead
+- **Component Management**: Get and set component controls with ease
 - **Script Monitoring**: Monitor script errors and status issues
 - **Script Management**: Restart scripts and process issues automatically
-- **Core Diagnostics**: Get system health information
-- **Advanced Error Handling**: Robust timeouts and connection management
-- **Code Export**: Extract all script code from systems
-- **Dual API Design**: Both async and synchronous-style methods available
+- **Code Management**: Export, update, and manage script code
+- **Log Collection**: Collect and filter script logs with timestamp removal
+- **Batch Operations**: Perform multiple operations efficiently
+- **Robust Error Handling**: Comprehensive timeouts and connection management
+- **Flexible API**: Both single-shot and session-based methods available
 
 ## Installation
 
@@ -26,7 +22,7 @@ npm install ide_qsys
 
 ## Quick Start
 
-### Basic Usage (Legacy - Still Supported)
+### Basic Usage
 
 ```javascript
 import Core from 'ide_qsys';
@@ -34,486 +30,282 @@ import Core from 'ide_qsys';
 const core = new Core({
   ip: '192.168.1.100',
   username: 'admin',
-  password: 'password',  // or use 'pw' or 'pin'
-  comp: 'MyComponent'
+  pin: 'your_pin'  // or password/pw
 });
 
-// Push code to component
-await core.update('script.lua');
-
-// Pull data from component
-const data = await core.retrieve({ verbose: true });
-```
-
-### Enhanced Usage
-
-```javascript
-import Core from 'ide_qsys';
-
-const core = new Core({
-  ip: '192.168.1.100',
-  username: 'admin',
-  password: 'password',  // or use 'pin' or 'pw'
-  comp: 'MyComponent',
-  options: { 
-    systemName: 'MySystem',
-    verbose: true 
-  }
-});
-
-// Get all components
-const components = await core.getComponents();
-
-// Monitor script errors
-const errors = await core.getScriptErrors();
-
-// Restart problematic scripts
-await core.restartScript('MyScript');
-
-// Get core diagnostics
-const diagnostics = await core.getCoreDiagnostics();
-```
-
-## API Reference
-
-### Constructor
-
-```javascript
-new Core(options)
-```
-
-**Parameters:**
-- `ip` (string): Q-Sys core IP address
-- `username` (string): Username for authentication
-- `pw`, `pin`, or `password` (string): Password/PIN for authentication
-- `comp` (string): Default component name
-- `options` (object): Additional options
-  - `systemName` (string): System name for logging
-  - `verbose` (boolean): Enable verbose logging
-
-### Method Types
-
-The library provides two types of methods for most operations:
-
-- **Async Methods**: Return immediately when the first complete response is received
-- **Sync Methods**: Wait for the complete response before returning (more reliable for complex operations)
-
-### Legacy Methods (Backward Compatible)
-
-#### `add(input, attribute)`
-Add a property to the Core instance.
-
-```javascript
-core.add('newProperty', 'value');
-```
-
-#### `update(input, options)`
-Push code or data to a component.
-
-```javascript
-await core.update('script.lua', { type: 'code', id: 1234 });
-```
-
-**Parameters:**
-- `input` (string): File path or data to send
-- `options` (object): Optional configuration
-  - `id` (number): Request ID (default: 1234)
-  - `type` (string): Control type (default: 'code')
-
-#### `retrieve(options)`
-Pull data from a component.
-
-```javascript
-const data = await core.retrieve({ 
-  verbose: true, 
-  type: 'code',
-  output: 'output.json' 
-});
-```
-
-**Parameters:**
-- `options` (object): Optional configuration
-  - `verbose` (boolean): Return full response data
-  - `type` (string): Specific control to retrieve
-  - `output` (string): File path to save data
-  - `id` (string): Request ID (default: '1234')
-
-### Component Management
-
-#### `getComponent(comp, ctl, opt)`
-Get a specific control from a component (async).
-
-```javascript
-const result = await core.getComponent('MyComponent', 'MyControl');
-```
-
-**Parameters:**
-- `comp` (string): Component name
-- `ctl` (string): Control name
-- `opt` (object): Optional configuration
-  - `verbose` (boolean): Enable verbose logging
-
-#### `getComponentSync(comp, ctl, opt)`
-Get a specific control from a component (synchronous-style).
-
-```javascript
-const result = await core.getComponentSync('MyComponent', 'MyControl');
-```
-
-**Parameters:** Same as `getComponent`
-
-**Difference from async version:** Waits for complete response before returning, more reliable for complex operations.
-
-#### `getComponents(opt)`
-Get all components from the core (async).
-
-```javascript
-const components = await core.getComponents();
-```
-
-**Parameters:**
-- `opt` (object): Optional configuration
-  - `verbose` (boolean): Enable verbose logging
-
-#### `getComponentsSync()`
-Get all components from the core (synchronous-style).
-
-```javascript
+// Single-shot operations (automatic connect/disconnect)
 const components = await core.getComponentsSync();
+const errors = await core.getScriptErrors();
 ```
 
-**Difference from async version:** Waits for complete response before returning.
-
-#### `getControls(comp, opt)`
-Get all controls for a component (async).
+### Session-Based Usage (Recommended for Multiple Operations)
 
 ```javascript
-const controls = await core.getControls('MyComponent');
+import Core from 'ide_qsys';
+
+const core = new Core({
+  ip: '192.168.1.100',
+  username: 'admin', 
+  pin: 'your_pin'
+});
+
+// Establish persistent connection
+await core.connect();
+
+// Perform multiple operations efficiently
+const components = await core.getComponents();
+const logs = await core.collectLogs('MainScript');
+const code = await core.getCode('MainScript');
+
+// Clean up connection
+await core.disconnect();
 ```
 
-**Parameters:**
-- `comp` (string): Component name (defaults to `this.comp`)
-- `opt` (object): Optional configuration
-  - `verbose` (boolean): Enable verbose logging
+## Authentication
 
-#### `getControlsSync(comp, opt)`
-Get all controls for a component (synchronous-style).
+The constructor accepts a single options object with your credentials:
 
 ```javascript
-const controls = await core.getControlsSync('MyComponent');
+// Constructor requires an options object
+const core = new Core({
+  ip: '192.168.1.100',
+  username: 'admin',
+  pin: 'your_pin',        // or 'password' or 'pw'
+  comp: 'MainScript',     // optional default component
+  verbose: false          // optional debug logging
+});
+
+// Using environment variables
+const core = new Core({
+  ip: '192.168.1.100',
+  username: process.env.QSYS_USERNAME,
+  pin: process.env.QSYS_PIN
+});
 ```
 
-**Parameters:** Same as `getControls`
+## Core Methods
 
-**Difference from async version:** Waits for complete response before returning.
+### Component Operations
 
-### Control Setting
-
-#### `setControl(comp, ctl, value, options)`
-Set a control value (async).
-
+#### Get All Components
 ```javascript
-await core.setControl('MyComponent', 'MyControl', 'newValue');
+// Single-shot (auto connect/disconnect)
+const components = await core.getComponentsSync();
+
+// Session-based (requires active connection)
+await core.connect();
+const components = await core.getComponents();
+await core.disconnect();
 ```
 
-**Parameters:**
-- `comp` (string): Component name
-- `ctl` (string): Control name
-- `value` (any): Value to set
-- `options` (object): Optional configuration
-  - `ramp` (number): Ramp time in milliseconds
-  - `verbose` (boolean): Enable verbose logging
-
-#### `setControlSync(comp, ctl, value, options)`
-Set a control value (synchronous-style).
-
+#### Get Component Controls
 ```javascript
-await core.setControlSync('MyComponent', 'MyControl', 'newValue');
+// Get all controls for a component
+const controls = await core.getControlsSync('MainScript');
+
+// Session-based with callback
+await core.connect();
+await core.getControls('MainScript', (error, controls) => {
+  if (error) console.error(error);
+  else console.log(controls);
+});
+await core.disconnect();
 ```
 
-**Parameters:** Same as `setControl`
-
-**Difference from async version:** Waits for complete response before returning.
-
-#### `setControls(comp, ctls, options)`
-Set multiple controls at once.
-
+#### Get/Set Individual Controls
 ```javascript
-const controls = [
-  { Name: 'Control1', Value: 'Value1' },
-  { Name: 'Control2', Value: 'Value2' }
-];
-await core.setControls('MyComponent', controls);
+// Get specific control value
+const result = await core.getComponentSync('MainScript', 'Status');
+
+// Set control value
+await core.setControlSync('MainScript', 'reload', 1);
 ```
 
-**Parameters:**
-- `comp` (string): Component name
-- `ctls` (array): Array of control objects with `Name` and `Value` properties
-- `options` (object): Optional configuration
+### Script Management
 
-### Script Monitoring
-
-#### `getScriptErrors(opt)`
-Get script errors from the core.
+#### Get Script Errors
+Monitor and retrieve script errors across all components:
 
 ```javascript
-// Get all errors
+// Get all script errors
 const errors = await core.getScriptErrors();
 
 // Get errors for specific script
-const error = await core.getScriptErrors({ scriptName: 'MyScript' });
+const mainErrors = await core.getScriptErrors({ scriptName: 'MainScript' });
+
+// Example output:
+// [
+//   {
+//     Component: 'MainScript',
+//     Value: 2,
+//     Details: 'attempt to index nil value...'
+//   }
+// ]
 ```
 
-**Parameters:**
-- `opt` (object): Optional configuration
-  - `scriptName` (string): Target specific script
-
-**Returns:** Array of error objects with `Component`, `Value`, and `Details` properties.
-
-#### `getScriptStatuses(opt)`
-Get script status issues.
+#### Restart Scripts
+Restart scripts to resolve issues:
 
 ```javascript
-const statuses = await core.getScriptStatuses();
+// Restart a specific script
+const result = await core.restartScript('MainScript');
+
+// Restart with options
+await core.restartScript('MainScript', { verbose: true });
 ```
 
-**Parameters:**
-- `opt` (object): Optional configuration
-  - `scriptName` (string): Target specific script
-
-**Returns:** Array of status objects with `Component`, `Control`, `Value`, and `String` properties.
-
-#### `restartScript(componentName, options)`
-Restart a script or plugin.
+#### Collect Logs
+Retrieve and filter script logs:
 
 ```javascript
-const success = await core.restartScript('MyScript');
+// Session-based log collection
+await core.connect();
+const logs = await core.collectLogs('MainScript');
+console.log(logs); // Array of clean log entries (timestamps removed)
+
+// With callback
+await core.collectLogs('MainScript', (error, logs) => {
+  if (error) console.error('Failed to collect logs:', error);
+  else logs.forEach(log => console.log(log));
+});
+await core.disconnect();
 ```
 
-**Parameters:**
-- `componentName` (string): Name of component to restart
-- `options` (object): Optional configuration
+### Code Management
 
-**Returns:** Boolean indicating success.
+#### Get Script Code
+```javascript
+await core.connect();
+const code = await core.getCode('MainScript');
+console.log(code); // Full script code as string
+await core.disconnect();
+```
 
-#### `processScriptIssues(systemName, site, ip)`
-Advanced script issue processing with automatic restart and validation.
+#### Update Script Code
+```javascript
+await core.connect();
+const newCode = `
+-- Updated script
+print("Hello from updated script!")
+`;
+await core.updateCode('MainScript', newCode);
+await core.disconnect();
+```
+
+#### Export All Script Code
+```javascript
+const allCode = await core.exportCode();
+// Returns object: { 'MainScript': 'code...', 'Module': 'code...' }
+```
+
+### Advanced Operations
+
+#### Process Script Issues
+Automatically restart scripts with issues and report results:
 
 ```javascript
-const result = await core.processScriptIssues('SystemName', 'SiteName', '192.168.1.100');
+const result = await core.processScriptIssues('SystemName', 'SiteCode', '192.168.1.100');
 
-console.log('Script Errors:', result.scriptErrors);
-console.log('Script Statuses:', result.scriptStatuses);
-console.log('Persistent Errors:', result.persistentErrors);
-console.log('Persistent Statuses:', result.persistentStatuses);
+console.log('Initial errors:', result.scriptErrors);
+console.log('Persistent errors after restart:', result.persistentErrors);
+console.log('Status issues resolved:', result.scriptStatuses.length - result.persistentStatuses.length);
 ```
 
-**Parameters:**
-- `systemName` (string): Name of the system
-- `site` (string): Site identifier
-- `ip` (string): IP address of the system
-
-**Returns:** Object with script issues, persistent issues, and processing results.
-
-### Core Diagnostics
-
-#### `getCoreDiagnostics(opt)`
-Get core system diagnostics.
+#### Batch Operations
+Perform multiple operations efficiently:
 
 ```javascript
-const diagnostics = await core.getCoreDiagnostics();
-console.log('Temperature:', diagnostics['system.temperature']);
-console.log('Fan Speed:', diagnostics['system.fan.1.speed']);
-console.log('Grandmaster:', diagnostics['grandmaster.name']);
+await core.connect();
+
+const operations = [
+  { type: 'getComponents' },
+  { type: 'getScriptErrors' },
+  { type: 'getCode', componentName: 'MainScript' }
+];
+
+const results = await core.batch(operations);
+results.forEach(result => {
+  if (result.success) {
+    console.log(`${result.operation} succeeded:`, result.result);
+  } else {
+    console.error(`${result.operation} failed:`, result.error);
+  }
+});
+
+await core.disconnect();
 ```
 
-**Parameters:**
-- `opt` (object): Optional configuration
+## Legacy Methods
 
-**Returns:** Object with system diagnostic data including temperature, fan speed, grandmaster info, and network speed.
-
-### Code Export
-
-#### `exportCode(opt)`
-Export all script code from the system.
+The library maintains compatibility with existing code patterns:
 
 ```javascript
-const codeExport = await core.exportCode();
-console.log('Scripts:', Object.keys(codeExport));
+// Legacy file-based code updates
+await core.update('script.lua');
+
+// Legacy data retrieval
+const data = await core.retrieve({ type: 'code', verbose: true });
 ```
-
-**Parameters:**
-- `opt` (object): Optional configuration
-
-**Returns:** Object with script names as keys and code as values.
-
-## Async vs Sync Methods
-
-### Async Methods
-- **Behavior**: Return immediately when the first complete response is received
-- **Use Case**: Fast operations where you want to process data as soon as it's available
-- **Example**: `getComponent()`, `getComponents()`, `getControls()`, `setControl()`
-
-### Sync Methods (Synchronous-Style)
-- **Behavior**: Wait for the complete response before returning
-- **Use Case**: Operations where you need guaranteed complete data
-- **Example**: `getComponentSync()`, `getComponentsSync()`, `getControlsSync()`, `setControlSync()`
-
-**Note**: Both method types are actually asynchronous (they return Promises). The "sync" methods are called "synchronous-style" because they wait for complete responses, similar to how `fs.readFileSync()` works compared to `fs.readFile()`.
 
 ## Error Handling
 
-The enhanced version includes robust error handling:
-
-- **Connection Timeouts**: 10-second connection timeout
-- **Operation Timeouts**: 30-second operation timeout
-- **Authentication Validation**: Automatic login verification
-- **Detailed Error Messages**: Clear error descriptions
-- **Automatic Cleanup**: Proper connection cleanup on errors
-
-## Examples
-
-### Monitor and Fix Script Issues
+All methods include comprehensive error handling with meaningful messages:
 
 ```javascript
-import Core from 'ide_qsys';
+try {
+  await core.connect();
+  const result = await core.getComponents();
+} catch (error) {
+  console.error('Operation failed:', error.message);
+  // Errors include context: "QRC connection error for 192.168.1.100: Connection refused"
+} finally {
+  await core.disconnect();
+}
+```
 
-const core = new Core({
-  ip: '192.168.1.100',
-  username: 'admin',
-  pin: 'password',
-  options: { systemName: 'ConferenceRoom' }
-});
+## Session Management Best Practices
 
-// Check for script issues
-const errors = await core.getScriptErrors();
-const statuses = await core.getScriptStatuses();
+1. **Always disconnect**: Ensure sessions are properly closed
+2. **Use try/finally**: Guarantee cleanup even on errors
+3. **Batch operations**: Use sessions for multiple operations
+4. **Single-shot for simple tasks**: Use sync methods for one-off operations
 
-if (errors.length > 0 || statuses.length > 0) {
-  console.log('Script issues detected, attempting to restart...');
+```javascript
+// Good session management
+const core = new Core({ ip: '192.168.1.100', username: 'admin', pin: 'pin' });
+
+try {
+  await core.connect();
   
-  // Process all issues with automatic restart
-  const result = await core.processScriptIssues('ConferenceRoom', 'MainOffice', '192.168.1.100');
+  // Multiple operations
+  const components = await core.getComponents();
+  const errors = await core.getScriptErrors();
+  const logs = await core.collectLogs('MainScript');
   
-  if (result.persistentErrors.length > 0) {
-    console.log('Persistent errors after restart:', result.persistentErrors);
-  }
+} catch (error) {
+  console.error('Session operations failed:', error);
+} finally {
+  await core.disconnect(); // Always cleanup
 }
 ```
 
-### System Health Monitoring
+## Performance Tips
 
-```javascript
-// Get core diagnostics
-const diagnostics = await core.getCoreDiagnostics();
+- Use session-based methods for multiple operations
+- Single-shot methods are perfect for simple, one-off tasks
+- Batch operations when possible to reduce overhead
+- Always clean up connections to prevent resource leaks
 
-if (diagnostics['system.temperature'] > 60) {
-  console.warn('High temperature detected:', diagnostics['system.temperature']);
-}
+## Requirements
 
-if (diagnostics['system.fan.1.speed'] < 1000) {
-  console.warn('Low fan speed:', diagnostics['system.fan.1.speed']);
-}
-```
-
-### Component Management
-
-```javascript
-// Get all components
-const components = await core.getComponents();
-
-// Find script components
-const scriptComponents = components.filter(comp => 
-  comp.Type.includes('script') || comp.Type.includes('PLUGIN')
-);
-
-console.log('Script components found:', scriptComponents.length);
-
-// Get controls for each script
-for (const component of scriptComponents) {
-  const controls = await core.getControls(component.ID);
-  console.log(`${component.Name} has ${controls.Controls.length} controls`);
-}
-```
-
-### Using Sync Methods for Reliable Operations
-
-```javascript
-// Use sync methods when you need guaranteed complete data
-const components = await core.getComponentsSync();
-const controls = await core.getControlsSync('MyComponent');
-
-// Use async methods for faster operations
-const quickData = await core.getComponent('MyComponent', 'MyControl');
-```
-
-## Migration Guide
-
-### For Existing Users
-No changes required! Your existing code will continue to work exactly as before.
-
-### For New Features
-To use the new functionality, simply call the new methods on your existing `Core` instances:
-
-```javascript
-// Your existing code
-const core = new Core({
-  ip: '192.168.1.100',
-  username: 'admin',
-  password: 'password',  // or use 'pw' or 'pin'
-  comp: 'MyComponent'
-});
-
-// Now you can also use new methods
-const components = await core.getComponents();
-const errors = await core.getScriptErrors();
-```
-
-### Constructor Migration (Optional)
-If you want to use the enhanced constructor features:
-
-```javascript
-// Old
-const core = new Core({
-  ip: '192.168.1.100',
-  username: 'admin',
-  password: 'password',  // or 'pw' or 'pin'
-  comp: 'MyComponent'
-});
-
-// New (optional)
-const core = new Core({
-  ip: '192.168.1.100',
-  username: 'admin',
-  password: 'password',  // or 'pin' or 'pw'
-  comp: 'MyComponent',
-  options: { systemName: 'MySystem' }
-});
-```
-
-## Dependencies
-
-- `net` - Node.js built-in module
-- `fs` - Node.js built-in module
+- Node.js 14+ (ES modules support)
+- Q-SYS Core with QRC enabled
+- Network access to Q-SYS Core on port 1710
 
 ## License
 
 ISC
 
-## Changelog
+## Contributing
 
-### Version 2.0.0
-- Added comprehensive component management
-- Added script monitoring and management
-- Added core diagnostics
-- Added advanced error handling
-- Added code export functionality
-- Added synchronous-style methods for reliable operations
-- Improved sync method implementation for better reliability
-- Maintained full backward compatibility
-- Enhanced constructor with options support
-
-### Version 1.5.8
-- Basic Q-Sys core interaction
-- Code push/pull functionality
-- Simple error handling
+Issues and pull requests welcome at [GitHub repository](https://github.com/patrickgilsf/ide_qsys).
