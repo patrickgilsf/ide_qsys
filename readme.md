@@ -2,7 +2,32 @@
 
 A powerful Node.js library for programmatically managing Q-SYS cores and Lua scripts. Deploy code to multiple systems, monitor script health, sync with files, and automate your Q-SYS infrastructure with ease.
 
-## Key Features
+## Quick Start
+
+### Connect to a Q-SYS Core
+
+First, establish a connection to your Q-SYS core:
+
+```javascript
+import Core from 'ide_qsys';
+
+// Create a connection to your Q-SYS core
+const core = new Core({
+  ip: '192.168.1.100',
+  username: 'admin', 
+  pin: '1234'
+});
+
+// Connect to the core
+await core.connect();
+
+// Get list of components
+const components = await core.getComponents();
+console.log(`Found ${components.length} components`);
+
+// Always disconnect when done
+await core.disconnect();
+```
 
 ### Instant Deployment Feedback
 ```javascript
@@ -11,6 +36,8 @@ const result = await core.updateCode('MainScript', luaCode);
 console.log(`Errors: ${result.deployment.errorCount}`);
 console.log(`Logs: ${result.deployment.logs.join(', ')}`);
 ```
+
+## Key Features
 
 ### Deploy One Script to Multiple Q-SYS Cores
 ```javascript
@@ -42,6 +69,13 @@ await core.saveScriptToFile('MainScript', './backup/main.lua');
 
 ### Monitor Script Health Across Systems
 ```javascript
+// Define your core configurations
+const coreConfigs = [
+  { ip: '192.168.1.100', username: 'admin', pin: '1234', systemName: 'Core1' },
+  { ip: '192.168.1.101', username: 'admin', pin: '5678', systemName: 'Core2' },
+  { ip: '192.168.1.102', username: 'admin', pin: '9012', systemName: 'Core3' }
+];
+
 // Get comprehensive health report across multiple cores
 const health = await Core.monitorScriptHealth(coreConfigs, ['MainScript'], {
   includeErrors: true,
@@ -76,30 +110,24 @@ This library is designed to manage Lua scripts that run on Q-SYS cores. Here's a
 -- Example Q-SYS Lua Script (main.lua)
 print("Audio System Controller v1.2")
 
--- System configuration
-local roomConfig = {
-  name = "Conference Room A",
-  micInputs = 4,
-  speakerOutputs = 2,
-  maxGain = 12.0
-}
-
 -- Initialize controls
-Controls.RoomName.String = roomConfig.name
+Controls.SystemName.String = "Conference Room A"
 Controls.SystemStatus.String = "Starting"
 
 -- Main initialization
 function Initialize()
-  print("Initializing " .. roomConfig.name)
+  print("System initializing...")
   Controls.SystemStatus.String = "Ready"
 end
 
 -- Event handlers
 Controls.MuteAll.EventHandler = function()
-  for i = 1, roomConfig.speakerOutputs do
-    Controls["Speaker_" .. i .. "_Mute"].Boolean = true
-  end
+  Controls.SpeakerMute.Boolean = true
   print("All speakers muted")
+end
+
+Controls.Initialize.EventHandler = function()
+  Initialize()
 end
 
 -- System ready
@@ -147,6 +175,21 @@ await core.disconnect();
 ```
 
 ## Authentication
+
+### Setting Up Q-SYS Administrator Credentials
+
+The username and PIN are configured in Q-SYS Administrator. You'll need to create a user with External Control Protocol permissions:
+
+![Q-SYS Administrator Example](media/Q-Sys_Administrator_Example.png)
+
+In Q-SYS Administrator:
+1. Go to the user management section
+2. Create or edit a user (e.g., "admin")
+3. Set a PIN (e.g., "1234")
+4. Enable "External Control Protocol" permissions
+5. Enable "File Management Protocol" if you need file operations
+
+### Using Credentials in Your Code
 
 The constructor accepts a single options object with your credentials:
 
