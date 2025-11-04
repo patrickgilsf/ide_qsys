@@ -1,98 +1,6 @@
 # ide_qsys
 
-A powerful Node.js library for programmatically managing Q-SYS cores and Lua scripts. Deploy code to multiple systems, monitor script health, sync with files, and automate your Q-SYS infrastructure with ease.
-
-## Quick Start
-
-### Connect to a Q-SYS Core
-
-First, establish a connection to your Q-SYS core:
-
-```javascript
-import Core from 'ide_qsys';
-
-// Create a connection to your Q-SYS core
-const core = new Core({
-  ip: '192.168.1.100',
-  username: 'admin', 
-  pin: '1234'
-});
-
-// Connect to the core
-await core.connect();
-
-// Get list of components
-const components = await core.getComponents();
-console.log(`Found ${components.length} components`);
-
-// Always disconnect when done
-await core.disconnect();
-```
-
-### Instant Deployment Feedback
-```javascript
-// Get immediate error counts and logs after deployment
-const result = await core.updateCode('MainScript', luaCode);
-console.log(`Errors: ${result.deployment.errorCount}`);
-console.log(`Logs: ${result.deployment.logs.join(', ')}`);
-```
-
-## Key Features
-
-### Deploy One Script to Multiple Q-SYS Cores
-```javascript
-// Deploy your Lua script to multiple cores with validation and rollback
-import fs from 'fs';
-const result = await Core.deployToMultipleCores(
-  [
-    { ip: '192.168.1.100', username: 'admin', pin: 'pin1' },
-    { ip: '192.168.1.101', username: 'admin', pin: 'pin2' },
-    { ip: '192.168.1.102', username: 'admin', pin: 'pin3' }
-  ],
-  'MainScript',
-  fs.readFileSync(`./scripts/main.lua`, 'utf8'),
-  { validateFirst: true, rollbackOnError: true }
-);
-```
-
-### Sync Lua Scripts with Files
-```javascript
-// Bidirectional sync between Q-SYS and your filesystem
-await core.syncScriptWithFile('MainScript', './scripts/main.lua', 'auto');
-
-// Push local file to Q-SYS
-await core.loadScriptFromFile('./scripts/updated-main.lua', 'MainScript');
-
-// Pull Q-SYS script to file
-await core.saveScriptToFile('MainScript', './backup/main.lua');
-```
-
-### Monitor Script Health Across Systems
-```javascript
-// Define your core configurations
-const coreConfigs = [
-  { ip: '192.168.1.100', username: 'admin', pin: '1234', systemName: 'Core1' },
-  { ip: '192.168.1.101', username: 'admin', pin: '5678', systemName: 'Core2' },
-  { ip: '192.168.1.102', username: 'admin', pin: '9012', systemName: 'Core3' }
-];
-
-// Get comprehensive health report across multiple cores
-const health = await Core.monitorScriptHealth(coreConfigs, ['MainScript'], {
-  includeErrors: true,
-  includeLogs: true
-});
-console.log(`System health: ${health.summary.healthPercentage}%`);
-```
-
-## Core Features
-
-- **Multi-Core Deployment**: Deploy Lua scripts to multiple Q-SYS cores simultaneously
-- **File Operations**: Sync Lua scripts between Q-SYS and your filesystem
-- **Health Monitoring**: Monitor script errors and status across your infrastructure
-- **Session Management**: High-performance persistent connections
-- **Error Detection**: Automatic error counting and log collection after deployments
-- **Batch Operations**: Perform multiple operations efficiently
-- **Robust Error Handling**: Comprehensive timeouts and connection management
+A Node.js library for programmatically managing Q-SYS cores and Lua scripts. Deploy code to multiple systems, monitor script health, sync with files, and automate your Q-SYS infrastructure.
 
 ## Installation
 
@@ -102,40 +10,7 @@ npm install ide_qsys
 
 ## Quick Start
 
-### Working with Q-SYS Lua Scripts
-
-This library is designed to manage Lua scripts that run on Q-SYS cores. Here's an example of the type of Lua code you'll be deploying:
-
-```lua
--- Example Q-SYS Lua Script (main.lua)
-print("Audio System Controller v1.2")
-
--- Initialize controls
-Controls.SystemName.String = "Conference Room A"
-Controls.SystemStatus.String = "Starting"
-
--- Main initialization
-function Initialize()
-  print("System initializing...")
-  Controls.SystemStatus.String = "Ready"
-end
-
--- Event handlers
-Controls.MuteAll.EventHandler = function()
-  Controls.SpeakerMute.Boolean = true
-  print("All speakers muted")
-end
-
-Controls.Initialize.EventHandler = function()
-  Initialize()
-end
-
--- System ready
-Controls.SystemStatus.String = "Online"
-print("Audio system initialized successfully")
-```
-
-### Basic Usage
+### Basic Connection
 
 ```javascript
 import Core from 'ide_qsys';
@@ -143,42 +18,45 @@ import Core from 'ide_qsys';
 const core = new Core({
   ip: '192.168.1.100',
   username: 'admin',
-  pin: 'your_pin'  // or password/pw
+  pin: '1234'
 });
 
-// Single-shot operations (automatic connect/disconnect)
-const components = await core.getComponentsSync();
-const errors = await core.getScriptErrors();
+await core.connect();
+const components = await core.getComponents();
+console.log(`Found ${components.length} components`);
+await core.disconnect();
 ```
 
-### Session-Based Usage (Recommended for Multiple Operations)
+## Q-SYS Component Configuration
+
+Before you can access script components via QRC, they must be configured for script access in Q-SYS Designer.
+
+### Enabling Script Access
+
+In Q-SYS Designer, for each script component you want to access:
+
+1. Select the script component
+2. In the Properties panel, set **"Script Access"** dropdown to anything other than **"None"** (which is the default)
+3. The **"Code Name"** field shows the component name you'll use in your code
+
+![Q-SYS Component Configuration](media/Q-Sys_Component_Access.png)
+
+**Important Notes:**
+- **Script Access = "None"**: Component cannot be accessed via QRC
+- **Script Access = "All"** or other options: Component can be accessed via QRC
+- The **"Code Name"** field value is what you use as the `componentName` parameter in your API calls
 
 ```javascript
-import Core from 'ide_qsys';
-
-const core = new Core({
-  ip: '192.168.1.100',
-  username: 'admin', 
-  pin: 'your_pin'
-});
-
-// Establish persistent connection
-await core.connect();
-
-// Perform multiple operations efficiently
+// If your component's "Code Name" is "MainScript"
 const components = await core.getComponents();
-const logs = await core.collectLogs('MainScript');
-const code = await core.getCode('MainScript');
-
-// Clean up connection
-await core.disconnect();
+const code = await core.getCode('MainScript');  // Use the Code Name here
 ```
 
 ## Authentication
 
 ### Setting Up Q-SYS Administrator Credentials
 
-The username and PIN are configured in Q-SYS Administrator. You'll need to create a user with External Control Protocol permissions:
+The username and PIN are configured in Q-SYS Administrator. You need to create a user with External Control Protocol permissions:
 
 ![Q-SYS Administrator Example](media/Q-Sys_Administrator_Example.png)
 
@@ -189,48 +67,115 @@ In Q-SYS Administrator:
 4. Enable "External Control Protocol" permissions
 5. Enable "File Management Protocol" if you need file operations
 
-### Using Credentials in Your Code
-
-The constructor accepts a single options object with your credentials:
+### Constructor Options
 
 ```javascript
-// Constructor requires an options object
+const core = new Core({
+  ip: '192.168.1.100',           // Required: Q-SYS Core IP address
+  username: 'admin',             // Required: Username from Q-SYS Administrator
+  pin: 'your_pin',               // Required: PIN (also accepts 'password' or 'pw')
+  comp: 'MainScript',            // Optional: Default component name
+  verbose: false                 // Optional: Enable debug logging
+});
+```
+
+### Authentication Error Examples
+
+**Wrong credentials:**
+```javascript
+// This will throw an error
 const core = new Core({
   ip: '192.168.1.100',
   username: 'admin',
-  pin: 'your_pin',        // or 'password' or 'pw'
-  comp: 'MainScript',     // optional default component
-  verbose: false          // optional debug logging
+  pin: 'wrong_pin'
 });
 
-// Using environment variables
-const core = new Core({
-  ip: '192.168.1.100',
-  username: process.env.QSYS_USERNAME,
-  pin: process.env.QSYS_PIN
-});
+try {
+  await core.connect();
+} catch (error) {
+  console.error(error.message); // "QRC authentication failed for 192.168.1.100: Logon required"
+}
 ```
 
-## Core Methods
-
-### Component Operations
-
-#### Get All Components
+**Missing credentials:**
 ```javascript
-// Single-shot (auto connect/disconnect)
-const components = await core.getComponentsSync();
+// This will throw an error
+const core = new Core({
+  ip: '192.168.1.100'
+  // Missing username and pin
+});
 
-// Session-based (requires active connection)
+try {
+  await core.connect();
+} catch (error) {
+  console.error(error.message); // "QRC authentication failed for 192.168.1.100: Logon required"
+}
+```
+
+## Connection Management
+
+### Session-Based (Recommended for Multiple Operations)
+
+```javascript
+const core = new Core({ ip: '192.168.1.100', username: 'admin', pin: '1234' });
+
 await core.connect();
+// Perform multiple operations efficiently
 const components = await core.getComponents();
+const logs = await core.collectLogs('MainScript');
+const code = await core.getCode('MainScript');
 await core.disconnect();
 ```
 
-#### Get Component Controls
-```javascript
-// Get all controls for a component
-const controls = await core.getControlsSync('MainScript');
+### Single-Shot Operations (Auto Connect/Disconnect)
 
+```javascript
+const core = new Core({ ip: '192.168.1.100', username: 'admin', pin: '1234' });
+
+// These methods handle connection automatically
+const components = await core.getComponentsSync();
+const errors = await core.getScriptErrorsSync();
+```
+
+## API Reference
+
+### Connection Methods
+
+#### `connect()`
+Establishes a persistent connection to the Q-SYS core.
+
+```javascript
+await core.connect();
+```
+
+#### `disconnect()`
+Closes the connection to the Q-SYS core.
+
+```javascript
+await core.disconnect();
+```
+
+### Component Methods
+
+#### `getComponents()` / `getComponentsSync()`
+Returns an array of all components in the Q-SYS design.
+
+```javascript
+// Session-based
+await core.connect();
+const components = await core.getComponents();
+await core.disconnect();
+
+// Single-shot
+const components = await core.getComponentsSync();
+```
+
+**Returns:** Array of component objects with `Name` and `Type` properties.
+
+#### `getControls(componentName, callback)` / `getControlsSync(componentName)`
+Gets all controls for a specific component.
+
+```javascript
 // Session-based with callback
 await core.connect();
 await core.getControls('MainScript', (error, controls) => {
@@ -238,185 +183,283 @@ await core.getControls('MainScript', (error, controls) => {
   else console.log(controls);
 });
 await core.disconnect();
+
+// Single-shot
+const controls = await core.getControlsSync('MainScript');
 ```
 
-#### Get/Set Individual Controls
-```javascript
-// Get specific control value
-const result = await core.getComponentSync('MainScript', 'Status');
+**Parameters:**
+- `componentName` (string): Name of the component
+- `callback` (function, optional): Callback function for session-based method
 
-// Set control value
-await core.setControlSync('MainScript', 'reload', 1);
+**Returns:** Array of control objects.
+
+#### `getComponent(componentName, controlName, callback)` / `getComponentSync(componentName, controlName)`
+Gets the value of a specific control.
+
+```javascript
+// Session-based
+await core.connect();
+const value = await core.getComponent('MainScript', 'Status');
+await core.disconnect();
+
+// Single-shot
+const value = await core.getComponentSync('MainScript', 'Status');
 ```
 
-### Script Management
+**Parameters:**
+- `componentName` (string): Name of the component
+- `controlName` (string): Name of the control
+- `callback` (function, optional): Callback function for session-based method
 
-#### Get Script Errors
-Monitor and retrieve script errors across all components:
+**Returns:** Control value object.
+
+#### `setComponent(componentName, controlName, value, callback)` / `setComponentSync(componentName, controlName, value)`
+Sets the value of a specific control.
 
 ```javascript
-// Get all script errors
-const errors = await core.getScriptErrors();
+// Session-based
+await core.connect();
+await core.setComponent('MainScript', 'reload', 1);
+await core.disconnect();
 
-// Get errors for specific script
-const mainErrors = await core.getScriptErrors({ scriptName: 'MainScript' });
-
-// Example output:
-// [
-//   {
-//     Component: 'MainScript',
-//     Value: 2,
-//     Details: 'attempt to index nil value...'
-//   }
-// ]
+// Single-shot
+await core.setComponentSync('MainScript', 'reload', 1);
 ```
 
-#### Restart Scripts
-Restart scripts to resolve issues:
+**Parameters:**
+- `componentName` (string): Name of the component
+- `controlName` (string): Name of the control
+- `value` (any): Value to set
+- `callback` (function, optional): Callback function for session-based method
+
+### Script Management Methods
+
+#### `getScriptErrors(options, callback)` / `getScriptErrorsSync(options)`
+Gets script errors for a component.
 
 ```javascript
-// Restart a specific script
-const result = await core.restartScript('MainScript');
+// Session-based
+await core.connect();
+const errors = await core.getScriptErrors({ scriptName: 'MainScript' });
+await core.disconnect();
 
-// Restart with options
-await core.restartScript('MainScript', { verbose: true });
+// Single-shot
+const errors = await core.getScriptErrorsSync({ scriptName: 'MainScript' });
 ```
 
-#### Collect Logs
-Retrieve and filter script logs:
+**Parameters:**
+- `options` (object, optional):
+  - `scriptName` (string): Specific script name to check
+- `callback` (function, optional): Callback function for session-based method
+
+**Returns:** Object with error count and details.
+
+#### `restartScript(componentName, callback)` / `restartScriptSync(componentName)`
+Restarts a script component.
 
 ```javascript
-// Session-based log collection
+// Session-based
+await core.connect();
+await core.restartScript('MainScript');
+await core.disconnect();
+
+// Single-shot
+await core.restartScriptSync('MainScript');
+```
+
+**Parameters:**
+- `componentName` (string): Name of the script component
+- `callback` (function, optional): Callback function for session-based method
+
+#### `collectLogs(componentName, callback)` / `collectLogsSync(componentName)`
+Collects console logs from a script component.
+
+```javascript
+// Session-based
 await core.connect();
 const logs = await core.collectLogs('MainScript');
-console.log(logs); // Array of clean log entries (timestamps removed)
-
-// With callback
-await core.collectLogs('MainScript', (error, logs) => {
-  if (error) console.error('Failed to collect logs:', error);
-  else logs.forEach(log => console.log(log));
-});
 await core.disconnect();
+
+// Single-shot
+const logs = await core.collectLogsSync('MainScript');
 ```
 
-### Code Management
+**Parameters:**
+- `componentName` (string): Name of the script component
+- `callback` (function, optional): Callback function for session-based method
 
-#### Get Script Code
+**Returns:** Array of log strings with timestamps removed.
+
+### Code Management Methods
+
+#### `getCode(componentName, callback)` / `getCodeSync(componentName)`
+Gets the Lua code from a script component.
+
 ```javascript
+// Session-based
 await core.connect();
 const code = await core.getCode('MainScript');
-console.log(code); // Full script code as string
 await core.disconnect();
+
+// Single-shot
+const code = await core.getCodeSync('MainScript');
 ```
 
-#### Update Script Code
-```javascript
-await core.connect();
-const newCode = `
--- Main Q-SYS Script
+**Parameters:**
+- `componentName` (string): Name of the script component
+- `callback` (function, optional): Callback function for session-based method
 
--- Initialize controls
-Controls.Status.String = "Online"
-Controls.ErrorCount.Value = 0
+**Returns:** String containing the Lua code.
 
--- Event handlers
-Controls.Initialize.EventHandler = function()
-    print("Manual initialization triggered")
-    Controls.Status.String = "Initialized"
-end
-`;
-
-const result = await core.updateCode('MainScript', newCode);
-
-// Enhanced result includes deployment information
-console.log(`Deployed ${result.deployment.codeLength} characters`);
-console.log(`Error count: ${result.deployment.errorCount}`);
-console.log(`Timestamp: ${result.deployment.timestamp}`);
-
-if (result.deployment.errorCount > 0) {
-  console.log(`Error details: ${result.deployment.errorDetails}`);
-}
-
-// Recent logs from the deployed script
-result.deployment.logs.forEach(log => {
-  console.log(`Log: ${log}`);
-});
-
-await core.disconnect();
-```
-
-#### Export All Script Code
-```javascript
-const allCode = await core.exportCode();
-// Returns object: { 'MainScript': 'code...', 'Module': 'code...' }
-```
-
-### Advanced Operations
-
-#### Process Script Issues
-Automatically restart scripts with issues and report results:
-
-```javascript
-const result = await core.processScriptIssues('SystemName', 'SiteCode', '192.168.1.100');
-
-console.log('Initial errors:', result.scriptErrors);
-console.log('Persistent errors after restart:', result.persistentErrors);
-console.log('Status issues resolved:', result.scriptStatuses.length - result.persistentStatuses.length);
-```
-
-#### Batch Operations
-Perform multiple operations efficiently:
+#### `updateCode(componentName, code, callback)`
+Updates the Lua code in a script component and returns deployment information.
 
 ```javascript
 await core.connect();
+const result = await core.updateCode('MainScript', luaCode);
+console.log(`Errors: ${result.deployment.errorCount}`);
+console.log(`Logs: ${result.deployment.logs.join(', ')}`);
+await core.disconnect();
+```
 
-const operations = [
-  { type: 'getComponents' },
-  { type: 'getScriptErrors' },
-  { type: 'getCode', componentName: 'MainScript' }
+**Parameters:**
+- `componentName` (string): Name of the script component
+- `code` (string): Lua code to deploy
+- `callback` (function, optional): Callback function
+
+**Returns:** Object with deployment information including:
+- `deployment.componentName` (string): Component name
+- `deployment.codeLength` (number): Length of deployed code
+- `deployment.errorCount` (number): Number of errors after deployment
+- `deployment.errorDetails` (object): Error details if any
+- `deployment.logs` (array): Console logs after deployment
+- `deployment.timestamp` (string): Deployment timestamp
+
+## Production Methods
+
+### Multi-Core Deployment
+
+#### `Core.deployToMultipleCores(coreConfigs, componentName, code, options)`
+Static method to deploy one script to multiple Q-SYS cores.
+
+```javascript
+const coreConfigs = [
+  { ip: '192.168.1.100', username: 'admin', pin: '1234', systemName: 'Core1' },
+  { ip: '192.168.1.101', username: 'admin', pin: '5678', systemName: 'Core2' },
+  { ip: '192.168.1.102', username: 'admin', pin: '9012', systemName: 'Core3' }
 ];
 
-const results = await core.batch(operations);
-results.forEach(result => {
-  if (result.success) {
-    console.log(`${result.operation} succeeded:`, result.result);
-  } else {
-    console.error(`${result.operation} failed:`, result.error);
-  }
-});
+const result = await Core.deployToMultipleCores(
+  coreConfigs,
+  'MainScript',
+  fs.readFileSync('./scripts/main.lua', 'utf8'),
+  { validateFirst: true, rollbackOnError: true }
+);
+```
 
+**Parameters:**
+- `coreConfigs` (array): Array of core configuration objects
+- `componentName` (string): Name of the script component
+- `code` (string): Lua code to deploy
+- `options` (object, optional):
+  - `validateFirst` (boolean): Validate code before deployment
+  - `rollbackOnError` (boolean): Rollback on deployment errors
+
+**Returns:** Object with deployment results for each core.
+
+### File Operations
+
+#### `loadScriptFromFile(filePath, componentName, options)`
+Loads Lua code from a file and deploys it to a component.
+
+```javascript
+await core.connect();
+const result = await core.loadScriptFromFile('./scripts/main.lua', 'MainScript');
+console.log(`Deployed: ${result.codeLength} characters, ${result.errorCount} errors`);
 await core.disconnect();
 ```
 
-## Legacy Methods
+**Parameters:**
+- `filePath` (string): Path to the Lua file
+- `componentName` (string): Name of the script component
+- `options` (object, optional): Additional options
 
-The library maintains compatibility with existing code patterns:
+**Returns:** Object with deployment information.
 
-```javascript
-// Legacy file-based code updates
-await core.update('script.lua');
-
-// Legacy data retrieval
-const data = await core.retrieve({ type: 'code', verbose: true });
-```
-
-## Error Handling
-
-All methods include comprehensive error handling with meaningful messages:
+#### `saveScriptToFile(componentName, filePath, options)`
+Saves Lua code from a component to a file.
 
 ```javascript
-try {
-  await core.connect();
-  const result = await core.getComponents();
-} catch (error) {
-  console.error('Operation failed:', error.message);
-  // Errors include context: "QRC connection error for 192.168.1.100: Connection refused"
-} finally {
-  await core.disconnect();
-}
+await core.connect();
+await core.saveScriptToFile('MainScript', './backup/main.lua', {
+  createDir: true,
+  backup: true
+});
+await core.disconnect();
 ```
 
-## Session Management Best Practices
+**Parameters:**
+- `componentName` (string): Name of the script component
+- `filePath` (string): Path where to save the file
+- `options` (object, optional):
+  - `createDir` (boolean): Create directory if it doesn't exist
+  - `backup` (boolean): Create backup if file exists
+
+#### `syncScriptWithFile(componentName, filePath, direction, options)`
+Synchronizes a script component with a file.
+
+```javascript
+await core.connect();
+// Auto-detect direction
+const result = await core.syncScriptWithFile('MainScript', './scripts/main.lua', 'auto');
+
+// Force direction
+await core.syncScriptWithFile('MainScript', './scripts/main.lua', 'push'); // File to Q-SYS
+await core.syncScriptWithFile('MainScript', './scripts/main.lua', 'pull'); // Q-SYS to file
+await core.disconnect();
+```
+
+**Parameters:**
+- `componentName` (string): Name of the script component
+- `filePath` (string): Path to the file
+- `direction` (string): 'auto', 'push', or 'pull'
+- `options` (object, optional): Additional options
+
+**Returns:** Object with sync information.
+
+### Health Monitoring
+
+#### `Core.monitorScriptHealth(coreConfigs, scriptNames, options)`
+Static method to monitor script health across multiple cores.
+
+```javascript
+const healthReport = await Core.monitorScriptHealth(
+  coreConfigs,
+  ['MainScript', 'Module'],
+  {
+    includeErrors: true,
+    includeStatus: true,
+    includeLogs: true,
+    logLines: 5
+  }
+);
+
+console.log(`Overall health: ${healthReport.summary.healthPercentage}%`);
+```
+
+**Parameters:**
+- `coreConfigs` (array): Array of core configuration objects
+- `scriptNames` (array): Array of script names to monitor
+- `options` (object, optional):
+  - `includeErrors` (boolean): Include error information
+  - `includeStatus` (boolean): Include status information
+  - `includeLogs` (boolean): Include log information
+  - `logLines` (number): Number of log lines to include
+
+**Returns:** Object with health report and summary.
+
+## Best Practices
 
 1. **Always disconnect**: Ensure sessions are properly closed
 2. **Use try/finally**: Guarantee cleanup even on errors
@@ -424,7 +467,6 @@ try {
 4. **Single-shot for simple tasks**: Use sync methods for one-off operations
 
 ```javascript
-// Good session management
 const core = new Core({ ip: '192.168.1.100', username: 'admin', pin: 'pin' });
 
 try {
@@ -441,124 +483,6 @@ try {
   await core.disconnect(); // Always cleanup
 }
 ```
-
-## Production Use Cases
-
-### Multi-Core Deployment
-
-Deploy one script to multiple Q-SYS cores with validation and rollback:
-
-```javascript
-import Core from 'ide_qsys';
-
-const coreConfigs = [
-  { ip: '192.168.1.100', username: 'admin', pin: 'pin1', systemName: 'Core1' },
-  { ip: '192.168.1.101', username: 'admin', pin: 'pin2', systemName: 'Core2' },
-  { ip: '192.168.1.102', username: 'admin', pin: 'pin3', systemName: 'Core3' }
-];
-
-const scriptCode = `
--- Main Q-SYS Control Script
-
--- Configuration
-local config = {
-    systemName = "Conference Room A",
-    audioInputs = 8,
-    audioOutputs = 4,
-    maxVolume = 0.8
-}
-
--- Initialize system controls
-Controls.SystemName.String = config.systemName
-Controls.Status.String = "Initializing"
-Controls.ErrorCount.Value = 0
-
--- System ready
-Controls.Status.String = "Online"
-print("System deployment completed successfully")
-`;
-
-const result = await Core.deployToMultipleCores(
-  coreConfigs, 
-  'MainScript', 
-  scriptCode,
-  {
-    validateFirst: true,     // Test connectivity first
-    rollbackOnError: true,   // Auto-rollback on script errors
-    maxConcurrent: 2,        // Deploy to 2 cores at once
-    delayBetween: 1000       // 1 second delay between operations
-  }
-);
-
-console.log(`Deployed to ${result.summary.successful}/${result.summary.total} cores`);
-```
-
-### File Operations
-
-Work with script files on the filesystem:
-
-```javascript
-const core = new Core({ ip: '192.168.1.100', username: 'admin', pin: 'pin' });
-
-// Save script from Q-SYS to file
-await core.saveScriptToFile('MainScript', './scripts/main.lua', {
-  createDir: true,
-  backup: true
-});
-
-// Load Lua script from file to Q-SYS (with deployment info)
-const loadResult = await core.loadScriptFromFile('./scripts/main.lua', 'MainScript');
-console.log(`Deployed: ${loadResult.codeLength} characters, ${loadResult.errorCount} errors`);
-
-// Bidirectional sync (auto-detect direction)
-const syncResult = await core.syncScriptWithFile('MainScript', './scripts/main.lua', 'auto');
-console.log(`Sync action: ${syncResult.action}`);
-
-// Force sync direction (push includes deployment info)
-const pushResult = await core.syncScriptWithFile('MainScript', './scripts/main.lua', 'push'); // File to Q-SYS
-console.log(`Push result: ${pushResult.errorCount} errors, ${pushResult.logs.length} log entries`);
-
-await core.syncScriptWithFile('MainScript', './scripts/main.lua', 'pull'); // Q-SYS to file
-```
-
-### Health Monitoring
-
-Monitor script health across multiple cores:
-
-```javascript
-const healthReport = await Core.monitorScriptHealth(
-  coreConfigs,
-  ['MainScript', 'Module'], // Specific scripts to monitor
-  {
-    includeErrors: true,
-    includeStatus: true,
-    includeLogs: true,
-    logLines: 5
-  }
-);
-
-console.log(`Overall health: ${healthReport.summary.healthPercentage}%`);
-console.log(`Healthy components: ${healthReport.summary.healthyComponents}/${healthReport.summary.totalComponents}`);
-
-// Check individual systems
-healthReport.results.forEach(system => {
-  console.log(`${system.system}: ${system.connected ? 'Connected' : 'Failed'}`);
-  if (system.components) {
-    system.components.forEach(component => {
-      console.log(`  ${component.name}: ${component.errors || 0} errors`);
-    });
-  }
-});
-```
-
-## Performance Tips
-
-- Use session-based methods for multiple operations
-- Single-shot methods are perfect for simple, one-off tasks
-- Batch operations when possible to reduce overhead
-- Always clean up connections to prevent resource leaks
-- Use multi-core deployment for consistent updates across systems
-- Monitor script health regularly in production environments
 
 ## Requirements
 
