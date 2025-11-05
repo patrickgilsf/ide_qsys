@@ -15,6 +15,7 @@ class Core {
 		this.username = options.username || '';
 		this.pin = options.pin || options.password || options.pw || '';
 		this.comp = options.comp || '';
+		this.timeout = options.timeout || 10000; // Default 10 second timeout
 		this.options = { systemName: options.systemName || this.ip, verbose: options.verbose || false };
 		
 		// Session state
@@ -92,14 +93,18 @@ class Core {
 	_sendData = async (data, options = {
 		sync: false,
 		send: false,
-		verbose: false
+		verbose: false,
+		timeout: null
 	}) => {
+		const timeout = options.timeout || this.timeout;
+		const operationTimeout = timeout * 3; // Operation timeout is 3x connection timeout
+		
 		return new Promise((resolve, reject) => {
 			let client = new net.Socket();
 			let fullString = "";
 			
 			// Set connection timeout
-			client.setTimeout(10000);
+			client.setTimeout(timeout);
 			
 			// Set up error handlers
 			client.on('error', (err) => {
@@ -109,14 +114,14 @@ class Core {
 			
 			client.on('timeout', () => {
 				client.destroy();
-				reject(new Error(`QRC connection timeout for ${this.ip} after 10 seconds`));
+				reject(new Error(`QRC connection timeout for ${this.ip} after ${timeout}ms`));
 			});
 			
 			// Add overall operation timeout
-			const operationTimeout = setTimeout(() => {
+			const operationTimeoutHandler = setTimeout(() => {
 				client.destroy();
-				reject(new Error(`QRC operation timeout for ${this.ip} after 30 seconds`));
-			}, 30000);
+				reject(new Error(`QRC operation timeout for ${this.ip} after ${operationTimeout}ms`));
+			}, operationTimeout);
 			
 			client.connect(1710, this.ip, async () => {
 				client.setTimeout(0);
@@ -139,12 +144,12 @@ class Core {
 								for (let r of this._parseData(fullString)) {
 									if (!r.id) continue;
 									if (r.result) {
-										clearTimeout(operationTimeout);
+										clearTimeout(operationTimeoutHandler);
 										client.destroy();
 										resolve(r.result);
 									}
 									if (r.error) {
-										clearTimeout(operationTimeout);
+										clearTimeout(operationTimeoutHandler);
 										client.destroy();
 										reject(new Error(`QRC error for ${this.ip}: ${r.error.message || r.error.code || 'Unknown error'}`));
 									}
@@ -154,7 +159,7 @@ class Core {
 							// Sync mode: wait for complete response or timeout
 							if (d.search(this.nt) !== -1) {
 								client.end();
-								clearTimeout(operationTimeout);
+								clearTimeout(operationTimeoutHandler);
 								for (let r of this._parseData(fullString)) {
 									if (r.result) resolve(r.result);
 									if (r.error) reject(new Error(`QRC error for ${this.ip}: ${r.error.message || r.error.code || 'Unknown error'}`));
@@ -173,16 +178,18 @@ class Core {
 	// SESSION MANAGEMENT METHODS
 
 	// Establish persistent connection
-	async connect() {
+	async connect(options = {}) {
 		if (this.isConnected && this.isAuthenticated) {
 			return true; // Already connected
 		}
+
+		const timeout = options.timeout || this.timeout;
 
 		return new Promise((resolve, reject) => {
 			this.client = new net.Socket();
 			let fullString = "";
 			
-			this.client.setTimeout(10000);
+			this.client.setTimeout(timeout);
 			
 			this.client.on('error', (err) => {
 				this.isConnected = false;
@@ -192,7 +199,7 @@ class Core {
 			
 			this.client.on('timeout', () => {
 				this.disconnect();
-				reject(new Error(`QRC connection timeout for ${this.ip} after 10 seconds`));
+				reject(new Error(`QRC connection timeout for ${this.ip} after ${timeout}ms`));
 			});
 			
 			this.client.connect(1710, this.ip, async () => {
@@ -220,7 +227,8 @@ class Core {
 	}
 
 	// Send request using persistent session
-	async sendRequest(requestData, timeout = 10000) {
+	async sendRequest(requestData, timeout = null) {
+		timeout = timeout || this.timeout;
 		if (!this.isConnected || !this.isAuthenticated) {
 			throw new Error(`QRC session not established for ${this.ip}`);
 		}
@@ -232,6 +240,15 @@ class Core {
 			
 			const request = { ...requestData, id: requestId };
 
+			// Set up timeout handler
+			const timeoutHandler = setTimeout(() => {
+				if (!requestComplete) {
+					requestComplete = true;
+					this.client.removeListener('data', responseHandler);
+					reject(new Error(`QRC request timeout for ${this.ip} after ${timeout}ms`));
+				}
+			}, timeout);
+
 			const responseHandler = (data) => {
 				if (requestComplete) return;
 				
@@ -240,6 +257,7 @@ class Core {
 					for (let r of this._parseData(fullString)) {
 						if (r.id === requestId) {
 							requestComplete = true;
+							clearTimeout(timeoutHandler); // Clear timeout on successful response
 							this.client.removeListener('data', responseHandler);
 							
 							if (r.error) {
@@ -255,20 +273,17 @@ class Core {
 
 			this.client.on('data', responseHandler);
 			this.client.write(`${JSON.stringify(request)}${this.nt}`);
-
-			setTimeout(() => {
-				if (!requestComplete) {
-					requestComplete = true;
-					this.client.removeListener('data', responseHandler);
-					reject(new Error(`QRC request timeout for ${this.ip} after ${timeout}ms`));
-				}
-			}, timeout);
 		});
 	}
 
 	// Disconnect and cleanup
 	disconnect() {
+		const wasConnected = this.isConnected;
+		
 		if (this.client) {
+			// Clear socket timeout before destroying
+			this.client.setTimeout(0);
+			this.client.removeAllListeners();
 			this.client.destroy();
 			this.client = null;
 		}
@@ -279,6 +294,13 @@ class Core {
 			clearTimeout(this.operationTimeout);
 			this.operationTimeout = null;
 		}
+		
+		return !this.isConnected; // Returns true if successfully disconnected
+	}
+	
+	// Check current connection status
+	get connected() {
+		return this.isConnected;
 	}
 
 	// BACKWARDS COMPATIBLE SYNC METHODS (Connect → Auth → Action → Disconnect)
@@ -515,43 +537,111 @@ class Core {
 
 	// ENHANCED HELPER METHODS
 
-	// Get script errors with enhanced functionality
+	// Get script errors with enhanced functionality (session-based, optimized)
 	async getScriptErrors(opt = {}) {
-		let rtn = [];
-		for (let cmp of await this.getComponentsSync()) {
-			if (!cmp.Type.includes('script') && !cmp.Type.includes("PLUGIN")) continue;
-			if (opt.scriptName && cmp.Name != opt.scriptName) continue;
+		// Optimization 1: If scriptName provided, get controls directly without iterating components
+		if (opt.scriptName) {
+			try {
+				const Controls = await this.getControls(opt.scriptName);
+				let errorObj = null;
+				let errorLogs = null;
 
-			const Controls = await this.getControlsSync(cmp.ID);
-			let errorObj = null;
-			let errorLogs = null;
+				for (let control of Controls.Controls) {
+					if (control.Name === "script.error.count" && control.Value > 0) {
+						errorObj = {
+							Component: opt.scriptName,
+							Value: control.Value
+						};
+					}
+					if (control.Name === "log.history") {
+						errorLogs = control.String.length > 30 ? 
+							`${control.String.substring(0, 30)} ...` : 
+							control.String;
+					}
+				}
 
-			for (let control of Controls.Controls) {
-				if (control.Name === "script.error.count" && control.Value > 0) {
-					errorObj = {
-						Component: cmp.Name,
-						Value: control.Value
+				// Component found but no errors
+				if (!errorObj) {
+					return {
+						Component: opt.scriptName,
+						Found: true,
+						Message: `Component '${opt.scriptName}' found with no errors`,
+						Value: 0,
+						Details: null
 					};
 				}
-				if (control.Name === "log.history") {
-					errorLogs = control.String.length > 30 ? 
-						`${control.String.substring(0, 30)} ...` : 
-						control.String;
-				}
-			}
 
-			if (errorObj) {
+				// Component found with errors
 				errorObj.Details = errorLogs;
-				rtn.push(errorObj);
+				return {
+					...errorObj,
+					Found: true,
+					Message: `Component '${opt.scriptName}' found with ${errorObj.Value} error(s)`
+				};
+
+			} catch (error) {
+				// Component not found or not accessible
+				const allComponents = await this.getComponents();
+				const totalScriptComponents = allComponents.filter(cmp => 
+					cmp.Type.includes('script') || cmp.Type.includes("PLUGIN")
+				).length;
+
+				return {
+					Component: opt.scriptName,
+					Found: false,
+					Message: `Component '${opt.scriptName}' not found. Available script components: ${totalScriptComponents}`,
+					Value: null,
+					Details: null
+				};
 			}
 		}
 
-		if (opt.scriptName) {
-			if (rtn.length > 1) throw new Error(`returning multiple components for ${opt.scriptName}!`);
-			return rtn[0];
-		} else {
-			return rtn;
+		// Get all script errors (when no specific scriptName provided)
+		let rtn = [];
+		let totalScriptComponents = 0;
+		
+		for (let cmp of await this.getComponents()) {
+			if (!cmp.Type.includes('script') && !cmp.Type.includes("PLUGIN")) continue;
+			totalScriptComponents++;
+
+			try {
+				const Controls = await this.getControls(cmp.Name);
+				let errorObj = null;
+				let errorLogs = null;
+
+				for (let control of Controls.Controls) {
+					if (control.Name === "script.error.count" && control.Value > 0) {
+						errorObj = {
+							Component: cmp.Name,
+							Value: control.Value
+						};
+					}
+					if (control.Name === "log.history") {
+						errorLogs = control.String.length > 30 ? 
+							`${control.String.substring(0, 30)} ...` : 
+							control.String;
+					}
+				}
+
+				if (errorObj) {
+					errorObj.Details = errorLogs;
+					rtn.push(errorObj);
+				}
+			} catch (error) {
+				// Skip components that can't be accessed
+				continue;
+			}
 		}
+
+		// Enhanced return for all scripts query
+		return {
+			errors: rtn,
+			summary: {
+				totalScriptComponents: totalScriptComponents,
+				componentsWithErrors: rtn.length,
+				totalErrors: rtn.reduce((sum, err) => sum + err.Value, 0)
+			}
+		};
 	}
 
 	// Collect logs from a component with timestamp filtering (session-based)
@@ -1013,10 +1103,143 @@ class Core {
 		}
 	}
 
-	// Sync script with file (bidirectional)
-	async syncScriptWithFile(componentName, filePath, direction = 'auto', options = {}) {
+	// Helper method for checking sync status
+	_checkSyncStatus(componentName, filePath, fileCode, componentCode) {
+		const fileExists = fileCode !== '';
+		const componentExists = componentCode !== '';
+		
+		if (!fileExists && !componentExists) {
+			return {
+				status: 'both-missing',
+				message: `Neither file nor component exists`,
+				inSync: false
+			};
+		}
+		
+		if (!fileExists) {
+			return {
+				status: 'file-missing',
+				message: `File missing, component exists (${componentCode.length} chars)`,
+				inSync: false
+			};
+		}
+		
+		if (!componentExists) {
+			return {
+				status: 'component-missing', 
+				message: `Component missing, file exists (${fileCode.length} chars)`,
+				inSync: false
+			};
+		}
+		
+		if (fileCode === componentCode) {
+			return {
+				status: 'in-sync',
+				message: `File and component are identical (${fileCode.length} chars)`,
+				inSync: true
+			};
+		}
+		
+		return {
+			status: 'out-of-sync',
+			message: `File (${fileCode.length} chars) and component (${componentCode.length} chars) differ`,
+			inSync: false,
+			fileSample: fileCode.substring(0, 100) + (fileCode.length > 100 ? '...' : ''),
+			componentSample: componentCode.substring(0, 100) + (componentCode.length > 100 ? '...' : '')
+		};
+	}
+
+	// Backup all scripts from the system to a designated folder
+	async backupAllScripts(backupDir = null, options = {}) {
 		const fs = await import('fs');
-		const { compareContent = true, createBackup = true } = options;
+		const path = await import('path');
+		const { createDir = true, includeEmpty = false, systemName = null, timestamp = false } = options;
+		
+		// Set default backup directory if none provided
+		if (!backupDir) {
+			const defaultSystemName = systemName || this.options.systemName || this.ip.replace(/\./g, '-');
+			if (timestamp) {
+				const timestampStr = new Date().toISOString().replace(/[:.]/g, '-');
+				backupDir = `./backup_${defaultSystemName}_${timestampStr}`;
+			} else {
+				backupDir = `./backup_${defaultSystemName}`;
+			}
+		}
+		
+		try {
+			// Create backup directory if needed
+			if (createDir && !fs.existsSync(backupDir)) {
+				fs.mkdirSync(backupDir, { recursive: true });
+			}
+			
+			const components = await this.getComponents();
+			const exportedScripts = {};
+			let scriptCount = 0;
+			
+			for (let component of components) {
+				if (component.Type === "device_controller_script") {
+					try {
+						const code = await this.getCode(component.Name);
+						
+						// Skip empty scripts unless includeEmpty is true
+						if (!includeEmpty && (!code || code.trim() === '')) {
+							continue;
+						}
+						
+						exportedScripts[component.Name] = code;
+						scriptCount++;
+						
+						// Write script to file
+						const scriptPath = path.join(backupDir, `${component.Name}.lua`);
+						fs.writeFileSync(scriptPath, code, 'utf8');
+						
+					} catch (error) {
+						console.log(`Warning: Could not backup script ${component.Name}: ${error.message}`);
+					}
+				}
+			}
+			
+			// Create backup manifest
+			const manifest = {
+				timestamp: new Date().toISOString(),
+				systemName: systemName || this.options.systemName || this.ip,
+				systemIP: this.ip,
+				totalComponents: components.length,
+				scriptComponents: components.filter(c => c.Type === "device_controller_script").length,
+				backedUpScripts: scriptCount,
+				scripts: Object.keys(exportedScripts).map(name => ({
+					name,
+					size: exportedScripts[name].length,
+					path: `${name}.lua`
+				}))
+			};
+			
+			// Write manifest file
+			const manifestPath = path.join(backupDir, 'backup_manifest.json');
+			fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+			
+			return {
+				success: true,
+				backupDir,
+				scriptCount,
+				totalComponents: components.length,
+				manifest: manifestPath,
+				scripts: Object.keys(exportedScripts)
+			};
+			
+		} catch (error) {
+			throw new Error(`Backup failed: ${error.message}`);
+		}
+	}
+
+	// Sync script with file (bidirectional)
+	async syncScriptWithFile(componentName, filePath, direction, options = {}) {
+		const fs = await import('fs');
+		const { createBackup = true } = options;
+		
+		if (!['push', 'pull', 'check'].includes(direction)) {
+			throw new Error(`Invalid direction: ${direction}. Use 'push', 'pull', or 'check'`);
+		}
 		
 		try {
 			const fileExists = fs.existsSync(filePath);
@@ -1031,33 +1254,26 @@ class Core {
 			try {
 				componentCode = await this.getCode(componentName);
 			} catch (error) {
-				if (!fileExists) {
-					throw new Error(`Neither file nor component exists: ${error.message}`);
-				}
-				// Component doesn't exist, but file does - will push to component
+				// Component doesn't exist
+				componentCode = '';
 			}
 			
-			// Determine sync direction
-			let actualDirection = direction;
-			if (direction === 'auto') {
-				if (!fileExists) {
-					actualDirection = 'pull'; // Component to file
-				} else if (!componentCode) {
-					actualDirection = 'push'; // File to component
-				} else if (compareContent && fileCode === componentCode) {
-					return {
-						success: true,
-						action: 'no-change',
-						message: 'File and component are already in sync'
-					};
-				} else {
-					// Both exist and differ - need user decision
-					throw new Error('Both file and component exist with different content. Please specify direction: "push" or "pull"');
-				}
+			// Handle 'check' direction
+			if (direction === 'check') {
+				const status = this._checkSyncStatus(componentName, filePath, fileCode, componentCode);
+				return {
+					success: true,
+					action: 'check',
+					status: status.status,
+					message: status.message,
+					inSync: status.inSync,
+					...(status.fileSample && { fileSample: status.fileSample }),
+					...(status.componentSample && { componentSample: status.componentSample })
+				};
 			}
 			
 			// Perform sync
-			if (actualDirection === 'push') {
+			if (direction === 'push') {
 				if (!fileExists) {
 					throw new Error(`Cannot push: File ${filePath} does not exist`);
 				}
@@ -1066,24 +1282,38 @@ class Core {
 					success: true,
 					action: 'push',
 					direction: 'file-to-component',
+					codeLength: fileCode.length,
 					...updateResult.deployment
 				};
-			} else if (actualDirection === 'pull') {
+			} else if (direction === 'pull') {
 				if (!componentCode) {
 					throw new Error(`Cannot pull: Component ${componentName} has no code`);
 				}
-				await this.saveScriptToFile(componentName, filePath, { 
-					createDir: true, 
-					backup: createBackup 
-				});
+				
+				const path = await import('path');
+				
+				// Create directory if needed
+				const dir = path.dirname(filePath);
+				if (!fs.existsSync(dir)) {
+					fs.mkdirSync(dir, { recursive: true });
+				}
+				
+				// Create backup if file exists
+				let backupPath = null;
+				if (createBackup && fileExists) {
+					backupPath = `${filePath}.backup`;
+					fs.copyFileSync(filePath, backupPath);
+				}
+				
+				fs.writeFileSync(filePath, componentCode, 'utf8');
+				
 				return {
 					success: true,
 					action: 'pull',
 					direction: 'component-to-file',
-					codeLength: componentCode.length
+					codeLength: componentCode.length,
+					...(backupPath && { backupPath })
 				};
-			} else {
-				throw new Error(`Invalid direction: ${actualDirection}. Use 'push', 'pull', or 'auto'`);
 			}
 			
 		} catch (error) {
