@@ -15,10 +15,12 @@ npm install ide_qsys
 ```javascript
 import Core from 'ide_qsys';
 
+const { username, pin } = process.env;
+
 const core = new Core({
   ip: '192.168.1.100',
-  username: 'admin',
-  pin: '1234'
+  username,
+  pin
 });
 
 await core.connect();
@@ -47,9 +49,9 @@ In Q-SYS Designer, for each script component you want to access:
 - The **"Code Name"** field value is what you use as the `componentName` parameter in your API calls
 
 ```javascript
-// If your component's "Code Name" is "MainScript"
+// If your component's "Code Name" is "Main"
 const components = await core.getComponents();
-const code = await core.getCode('MainScript');  // Use the Code Name here
+const code = await core.getCode('Main');  // Use the Code Name here
 ```
 
 ## Authentication
@@ -70,12 +72,14 @@ In Q-SYS Administrator:
 ### Constructor Options
 
 ```javascript
+const { username, pin } = process.env;
+
 const core = new Core({
   ip: '192.168.1.100',           // Required: Q-SYS Core IP address
-  username: 'admin',             // Required: Username from Q-SYS Administrator
-  pin: 'your_pin',               // Required: PIN (also accepts 'password' or 'pw')
-  comp: 'MainScript',            // Optional: Default component name
-  verbose: false                 // Optional: Enable debug logging
+  username,                      // Required: Username from Q-SYS Administrator
+  pin,                          // Required: PIN (also accepts 'password' or 'pw')
+  comp: 'Main',                 // Optional: Default component name
+  verbose: false                // Optional: Enable debug logging
 });
 ```
 
@@ -84,10 +88,11 @@ const core = new Core({
 **Wrong credentials:**
 ```javascript
 // This will throw an error
+const { username } = process.env;
 const core = new Core({
   ip: '192.168.1.100',
-  username: 'admin',
-  pin: 'wrong_pin'
+  username,
+  pin: 'wrong_pin'  // Intentionally wrong PIN for demonstration
 });
 
 try {
@@ -117,20 +122,22 @@ try {
 ### Session-Based (Recommended for Multiple Operations)
 
 ```javascript
-const core = new Core({ ip: '192.168.1.100', username: 'admin', pin: '1234' });
+const { username, pin } = process.env;
+const core = new Core({ ip: '192.168.1.100', username, pin });
 
 await core.connect();
 // Perform multiple operations efficiently
 const components = await core.getComponents();
-const logs = await core.collectLogs('MainScript');
-const code = await core.getCode('MainScript');
+const logs = await core.collectLogs('Main');
+const code = await core.getCode('Main');
 await core.disconnect();
 ```
 
 ### Single-Shot Operations (Auto Connect/Disconnect)
 
 ```javascript
-const core = new Core({ ip: '192.168.1.100', username: 'admin', pin: '1234' });
+const { username, pin } = process.env;
+const core = new Core({ ip: '192.168.1.100', username, pin });
 
 // These methods handle connection automatically
 const components = await core.getComponentsSync();
@@ -152,8 +159,14 @@ await core.connect();
 Closes the connection to the Q-SYS core.
 
 ```javascript
-await core.disconnect();
+const disconnected = await core.disconnect();
+console.log(`Successfully disconnected: ${disconnected}`); // true if successful
+
+// Check connection status anytime
+console.log(`Currently connected: ${core.connected}`); // boolean property
 ```
+
+**Returns:** `boolean` - `true` if successfully disconnected, `false` otherwise
 
 ### Component Methods
 
@@ -178,14 +191,14 @@ Gets all controls for a specific component.
 ```javascript
 // Session-based with callback
 await core.connect();
-await core.getControls('MainScript', (error, controls) => {
+await core.getControls('Main', (error, controls) => {
   if (error) console.error(error);
   else console.log(controls);
 });
 await core.disconnect();
 
 // Single-shot
-const controls = await core.getControlsSync('MainScript');
+const controls = await core.getControlsSync('Main');
 ```
 
 **Parameters:**
@@ -200,11 +213,11 @@ Gets the value of a specific control.
 ```javascript
 // Session-based
 await core.connect();
-const value = await core.getComponent('MainScript', 'Status');
+const value = await core.getComponent('Main', 'Status');
 await core.disconnect();
 
 // Single-shot
-const value = await core.getComponentSync('MainScript', 'Status');
+const value = await core.getComponentSync('Main', 'Status');
 ```
 
 **Parameters:**
@@ -220,11 +233,11 @@ Sets the value of a specific control.
 ```javascript
 // Session-based
 await core.connect();
-await core.setComponent('MainScript', 'reload', 1);
+await core.setComponent('Main', 'reload', 1);
 await core.disconnect();
 
 // Single-shot
-await core.setComponentSync('MainScript', 'reload', 1);
+await core.setComponentSync('Main', 'reload', 1);
 ```
 
 **Parameters:**
@@ -236,16 +249,26 @@ await core.setComponentSync('MainScript', 'reload', 1);
 ### Script Management Methods
 
 #### `getScriptErrors(options, callback)` / `getScriptErrorsSync(options)`
-Gets script errors for a component.
+Gets script errors for components with enhanced feedback.
 
 ```javascript
-// Session-based
+// Session-based - specific component
 await core.connect();
-const errors = await core.getScriptErrors({ scriptName: 'MainScript' });
+const errors = await core.getScriptErrors({ scriptName: 'Main' });
+console.log(errors.Found);    // true/false - component exists
+console.log(errors.Message);  // descriptive message
+console.log(errors.Value);    // error count (0 if no errors)
+
+// Session-based - all components
+const allErrors = await core.getScriptErrors();
+console.log(allErrors.summary.totalScriptComponents);  // total script components found
+console.log(allErrors.summary.componentsWithErrors);   // how many have errors
+console.log(allErrors.errors);                         // array of components with errors
+
 await core.disconnect();
 
 // Single-shot
-const errors = await core.getScriptErrorsSync({ scriptName: 'MainScript' });
+const errors = await core.getScriptErrorsSync({ scriptName: 'Main' });
 ```
 
 **Parameters:**
@@ -253,7 +276,9 @@ const errors = await core.getScriptErrorsSync({ scriptName: 'MainScript' });
   - `scriptName` (string): Specific script name to check
 - `callback` (function, optional): Callback function for session-based method
 
-**Returns:** Object with error count and details.
+**Returns:** 
+- With `scriptName`: Object with `Found`, `Message`, `Value`, `Details`, `Component` properties
+- Without `scriptName`: Object with `errors` array and `summary` object
 
 #### `restartScript(componentName, callback)` / `restartScriptSync(componentName)`
 Restarts a script component.
@@ -261,11 +286,11 @@ Restarts a script component.
 ```javascript
 // Session-based
 await core.connect();
-await core.restartScript('MainScript');
+await core.restartScript('Main');
 await core.disconnect();
 
 // Single-shot
-await core.restartScriptSync('MainScript');
+await core.restartScriptSync('Main');
 ```
 
 **Parameters:**
@@ -278,11 +303,11 @@ Collects console logs from a script component.
 ```javascript
 // Session-based
 await core.connect();
-const logs = await core.collectLogs('MainScript');
+const logs = await core.collectLogs('Main');
 await core.disconnect();
 
 // Single-shot
-const logs = await core.collectLogsSync('MainScript');
+const logs = await core.collectLogsSync('Main');
 ```
 
 **Parameters:**
@@ -299,11 +324,11 @@ Gets the Lua code from a script component.
 ```javascript
 // Session-based
 await core.connect();
-const code = await core.getCode('MainScript');
+const code = await core.getCode('Main');
 await core.disconnect();
 
 // Single-shot
-const code = await core.getCodeSync('MainScript');
+const code = await core.getCodeSync('Main');
 ```
 
 **Parameters:**
@@ -317,7 +342,7 @@ Updates the Lua code in a script component and returns deployment information.
 
 ```javascript
 await core.connect();
-const result = await core.updateCode('MainScript', luaCode);
+const result = await core.updateCode('Main', luaCode);
 console.log(`Errors: ${result.deployment.errorCount}`);
 console.log(`Logs: ${result.deployment.logs.join(', ')}`);
 await core.disconnect();
@@ -344,15 +369,17 @@ await core.disconnect();
 Static method to deploy one script to multiple Q-SYS cores.
 
 ```javascript
+const { username, pin } = process.env;
+
 const coreConfigs = [
-  { ip: '192.168.1.100', username: 'admin', pin: '1234', systemName: 'Core1' },
-  { ip: '192.168.1.101', username: 'admin', pin: '5678', systemName: 'Core2' },
-  { ip: '192.168.1.102', username: 'admin', pin: '9012', systemName: 'Core3' }
+  { ip: '192.168.1.100', username, pin, systemName: 'Core1' },
+  { ip: '192.168.1.101', username, pin, systemName: 'Core2' },
+  { ip: '192.168.1.102', username, pin, systemName: 'Core3' }
 ];
 
 const result = await Core.deployToMultipleCores(
   coreConfigs,
-  'MainScript',
+  'Main',
   fs.readFileSync('./scripts/main.lua', 'utf8'),
   { validateFirst: true, rollbackOnError: true }
 );
@@ -375,7 +402,7 @@ Loads Lua code from a file and deploys it to a component.
 
 ```javascript
 await core.connect();
-const result = await core.loadScriptFromFile('./scripts/main.lua', 'MainScript');
+const result = await core.loadScriptFromFile('./scripts/main.lua', 'Main');
 console.log(`Deployed: ${result.codeLength} characters, ${result.errorCount} errors`);
 await core.disconnect();
 ```
@@ -392,7 +419,7 @@ Saves Lua code from a component to a file.
 
 ```javascript
 await core.connect();
-await core.saveScriptToFile('MainScript', './backup/main.lua', {
+await core.saveScriptToFile('Main', './backup/main.lua', {
   createDir: true,
   backup: true
 });
@@ -411,22 +438,101 @@ Synchronizes a script component with a file.
 
 ```javascript
 await core.connect();
-// Auto-detect direction
-const result = await core.syncScriptWithFile('MainScript', './scripts/main.lua', 'auto');
 
-// Force direction
-await core.syncScriptWithFile('MainScript', './scripts/main.lua', 'push'); // File to Q-SYS
-await core.syncScriptWithFile('MainScript', './scripts/main.lua', 'pull'); // Q-SYS to file
+// Check sync status without making changes
+const status = await core.syncScriptWithFile('Main', './scripts/main.lua', 'check');
+console.log(status.message); // "File (3252 chars) and component (3232 chars) differ"
+
+// Force file to component
+await core.syncScriptWithFile('Main', './scripts/main.lua', 'push', {
+  createBackup: true  // Create backup before overwriting (default: true)
+});
+
+// Force component to file
+await core.syncScriptWithFile('Main', './scripts/main.lua', 'pull', {
+  createBackup: true  // Create backup before overwriting (default: true)
+});
+
 await core.disconnect();
 ```
 
 **Parameters:**
 - `componentName` (string): Name of the script component
 - `filePath` (string): Path to the file
-- `direction` (string): 'auto', 'push', or 'pull'
-- `options` (object, optional): Additional options
+- `direction` (string): 'check', 'push', or 'pull'
+- `options` (object, optional):
+  - `createBackup` (boolean): Create backup files before overwriting (default: true)
 
-**Returns:** Object with sync information.
+**Directions:**
+- `'check'`: Compare file and component, return status information
+- `'push'`: Update component with file content (file → component)
+- `'pull'`: Update file with component content (component → file)
+
+**Returns:** Object with sync information:
+- `success` (boolean): Operation success status
+- `action` (string): 'check', 'push', or 'pull'
+- `direction` (string): Sync direction used (for push/pull)
+- `message` (string): Descriptive status message
+- `inSync` (boolean): Whether file and component are identical (check only)
+- `status` (string): Sync status - 'in-sync', 'out-of-sync', 'file-missing', 'component-missing', 'both-missing' (check only)
+- `fileSample` (string): First 100 characters of file (check only, when different)
+- `componentSample` (string): First 100 characters of component (check only, when different)
+- `codeLength` (number): Length of synced code (push/pull only)
+- `backupPath` (string): Path to backup file if created (pull only)
+
+#### `backupAllScripts(backupDir, options)`
+Backup all control scripts from the system to a designated folder.
+
+```javascript
+const { username, pin } = process.env;
+const core = new Core({ ip: '192.168.1.100', username, pin });
+
+await core.connect();
+
+// Auto-generated backup directory (default - no timestamp, will overwrite)
+const result = await core.backupAllScripts();
+// Creates: ./backup_192-168-1-100/
+
+// Auto-generated with timestamp (prevents overwrites)
+const result = await core.backupAllScripts(null, { timestamp: true });
+// Creates: ./backup_192-168-1-100_2025-11-05T17-33-26-480Z/
+
+// Specific backup directory
+const result = await core.backupAllScripts('./backups/core1');
+
+// Advanced backup with options
+const result = await core.backupAllScripts('./backups/core1', {
+  createDir: true,        // Create directory if it doesn't exist (default: true)
+  includeEmpty: false,    // Include scripts with empty code (default: false)
+  systemName: 'Core1',    // Custom system name for manifest (default: IP)
+  timestamp: false        // Include timestamp in auto-generated directory names (default: false)
+});
+
+console.log(`Backed up ${result.scriptCount} scripts to ${result.backupDir}`);
+console.log(`Scripts: ${result.scripts.join(', ')}`);
+
+await core.disconnect();
+```
+
+**Parameters:**
+- `backupDir` (string, optional): Directory path where scripts will be saved (default: auto-generated folder)
+- `options` (object, optional):
+  - `createDir` (boolean): Create backup directory if it doesn't exist (default: true)
+  - `includeEmpty` (boolean): Include scripts with empty/blank code (default: false)
+  - `systemName` (string): Custom system name for manifest (default: uses systemName or IP)
+  - `timestamp` (boolean): Include timestamp in auto-generated directory names (default: false)
+
+**Returns:** Object with backup information:
+- `success` (boolean): Backup operation success status
+- `backupDir` (string): Path to backup directory
+- `scriptCount` (number): Number of scripts backed up
+- `totalComponents` (number): Total components found in system
+- `manifest` (string): Path to backup manifest file
+- `scripts` (array): Array of script names that were backed up
+
+**Files Created:**
+- `{ComponentName}.lua` - Individual script files
+- `backup_manifest.json` - Backup metadata and script inventory
 
 ### Health Monitoring
 
@@ -434,9 +540,17 @@ await core.disconnect();
 Static method to monitor script health across multiple cores.
 
 ```javascript
+const { username, pin } = process.env;
+
+const coreConfigs = [
+  { ip: '192.168.1.100', username, pin, systemName: 'Core1' },
+  { ip: '192.168.1.101', username, pin, systemName: 'Core2' },
+  { ip: '192.168.1.102', username, pin, systemName: 'Core3' }
+];
+
 const healthReport = await Core.monitorScriptHealth(
   coreConfigs,
-  ['MainScript', 'Module'],
+  ['Main', 'Module'],
   {
     includeErrors: true,
     includeStatus: true,
@@ -446,6 +560,7 @@ const healthReport = await Core.monitorScriptHealth(
 );
 
 console.log(`Overall health: ${healthReport.summary.healthPercentage}%`);
+console.log(`Cores with issues: ${healthReport.summary.coresWithIssues}`);
 ```
 
 **Parameters:**
@@ -467,7 +582,8 @@ console.log(`Overall health: ${healthReport.summary.healthPercentage}%`);
 4. **Single-shot for simple tasks**: Use sync methods for one-off operations
 
 ```javascript
-const core = new Core({ ip: '192.168.1.100', username: 'admin', pin: 'pin' });
+const { username, pin } = process.env;
+const core = new Core({ ip: '192.168.1.100', username, pin });
 
 try {
   await core.connect();
@@ -475,7 +591,7 @@ try {
   // Multiple operations
   const components = await core.getComponents();
   const errors = await core.getScriptErrors();
-  const logs = await core.collectLogs('MainScript');
+  const logs = await core.collectLogs('Main');
   
 } catch (error) {
   console.error('Session operations failed:', error);
