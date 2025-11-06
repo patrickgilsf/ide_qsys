@@ -20,7 +20,8 @@ const { username, pin } = process.env;
 const core = new Core({
   ip: '192.168.1.100',
   username,
-  pin
+  pin,
+  debug: false  // Enable verbose logging (default: false)
 });
 
 await core.connect();

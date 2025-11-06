@@ -32,16 +32,23 @@ class Core {
 	// Parse QRC response data
 	_parseData(data) {
 		let rtn = [];
-		for (let str of data.split(/\u0000/).filter(Boolean)) {
+		const chunks = data.split(/\u0000/).filter(Boolean);
+		
+		for (let str of chunks) {
+			if (!str || str.trim() === '') continue;
+			
 			try {
-				if (str && JSON.parse(str)) {
-					rtn.push(JSON.parse(str));
+				const parsed = JSON.parse(str);
+				if (parsed) {
+					rtn.push(parsed);
 				}
 			} catch (e) {
-				if (String(e).match(/position (\d+)/)) {
-					let pos = Number(String(e).match(/position (\d+)/)[1]);
-					console.log("Error at position: ", pos);
+				// Only log parsing errors in debug mode or if they're unexpected
+				if (this.options && this.options.debug) {
+					console.warn(`QRC JSON parse warning: ${e.message} (chunk: "${str.substring(0, 50)}...")`);
 				}
+				// Skip malformed chunks silently - this is normal for QRC protocol
+				continue;
 			}
 		}
 		return rtn;
