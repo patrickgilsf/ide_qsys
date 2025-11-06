@@ -21,7 +21,7 @@ const core = new Core({
   ip: '192.168.1.100',
   username,
   pin,
-  debug: false  // Enable verbose logging (default: false)
+  verbose: false  // Enable verbose logging (default: false)
 });
 
 await core.connect();

@@ -43,8 +43,8 @@ class Core {
 					rtn.push(parsed);
 				}
 			} catch (e) {
-				// Only log parsing errors in debug mode or if they're unexpected
-				if (this.options && this.options.debug) {
+				// Only log parsing errors in verbose mode or if they're unexpected
+				if (this.options && this.options.verbose) {
 					console.warn(`QRC JSON parse warning: ${e.message} (chunk: "${str.substring(0, 50)}...")`);
 				}
 				// Skip malformed chunks silently - this is normal for QRC protocol
